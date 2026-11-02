@@ -1,5 +1,5 @@
 import dayjs, { Dayjs } from "dayjs"
-import type { ScheduleInput, Unit } from "~options"
+import type { DayRule, ScheduleInput, Unit } from "~options"
 
 export const generateUUID = () => {
     // Public Domain/MIT
@@ -118,15 +118,31 @@ const parseMinuteOfDay = (hhmm: string | undefined): number | null => {
 
 // The random open times for one calendar day. Returns [] if the day is not selected
 // or the window or count is invalid. The window is [windowStart, windowEnd).
-export const planRandomTimes = (input: ScheduleInput, day: Dayjs): Dayjs[] => {
-    const days = input.days ?? []
-    if (!days.includes(day.day())) return []
+export const DAY_NAMES = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"]
 
-    const start = parseMinuteOfDay(input.windowStart)
-    const end = parseMinuteOfDay(input.windowEnd)
+// Every day of the week, switched off by default except Monday to Friday
+export const defaultDayRules = (): DayRule[] =>
+    DAY_NAMES.map((_, day) => ({
+        day,
+        enabled: day >= 1 && day <= 5,
+        timesPerDay: 3,
+        windowStart: "10:00",
+        windowEnd: "18:00",
+    }))
+
+// The enabled rule for a day of the week (0 = Sunday), or undefined if that day is off
+export const findDayRule = (input: ScheduleInput, weekday: number): DayRule | undefined =>
+    (input.dayRules ?? []).find((rule) => rule.day === weekday && rule.enabled)
+
+export const planRandomTimes = (input: ScheduleInput, day: Dayjs): Dayjs[] => {
+    const rule = findDayRule(input, day.day())
+    if (!rule) return []
+
+    const start = parseMinuteOfDay(rule.windowStart)
+    const end = parseMinuteOfDay(rule.windowEnd)
     if (start === null || end === null || end <= start) return []
 
-    const perDay = Math.floor(Number(input.timesPerDay))
+    const perDay = Math.floor(Number(rule.timesPerDay))
     if (!(perDay >= 1)) return []
 
     const rand = seededRandom(hashSeed(`${input.uuid}|${day.format("YYYY-MM-DD")}`))
@@ -139,15 +155,30 @@ export const planRandomTimes = (input: ScheduleInput, day: Dayjs): Dayjs[] => {
 
 // A message describing why a "random" schedule cannot run, or null if it is valid
 export const randomScheduleError = (input: ScheduleInput): string | null => {
-    if (!input.days || input.days.length === 0) return "Select at least one day."
+    const enabled = (input.dayRules ?? []).filter((rule) => rule.enabled)
+    if (enabled.length === 0) return "Turn on at least one day."
 
-    const start = parseMinuteOfDay(input.windowStart)
-    const end = parseMinuteOfDay(input.windowEnd)
-    if (start === null || end === null || end <= start) {
-        return "\"Window Until\" must be later than \"Window From\"."
+    const gap = Math.max(0, Math.floor(Number(input.minGapMinutes) || 0))
+
+    for (const rule of enabled) {
+        const name = DAY_NAMES[rule.day]
+        const start = parseMinuteOfDay(rule.windowStart)
+        const end = parseMinuteOfDay(rule.windowEnd)
+
+        if (start === null || end === null || end <= start) {
+            return `${name}: "until" must be later than "from".`
+        }
+
+        const perDay = Math.floor(Number(rule.timesPerDay))
+        if (!(perDay >= 1)) return `${name}: opens must be at least 1.`
+
+        // how many opens fit in the window with the minimum gap
+        const total = end - start - 1
+        const maxCount = gap > 0 ? Math.floor(total / gap) + 1 : total + 1
+        if (perDay > maxCount) {
+            return `${name}: ${perDay} opens don't fit between those times with a ${gap} minute gap.`
+        }
     }
-
-    if (!(Math.floor(Number(input.timesPerDay)) >= 1)) return "Opens per day must be at least 1."
 
     return null
 }

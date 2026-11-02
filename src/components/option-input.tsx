@@ -22,7 +22,7 @@ import { TextInput } from "./form/text-input"
 import { TimeInput } from "./form/time-input"
 import { ToggleInput } from "./form/toggle-input"
 import { UrlInput } from "./form/url-input"
-import { WeekdayInput } from "./form/weekday-input"
+import { DayRulesInput } from "./form/day-rules-input"
 import { Schedules } from "./schedules"
 
 export const OptionInput = ({ input, index }) => {
@@ -147,41 +147,14 @@ export const OptionInput = ({ input, index }) => {
         )}
         {input.frequency === "random" && (
           <>
-            <WeekdayInput
+            <DayRulesInput
               index={index}
               input={input}
               handleInputChange={handleInputChange}
-            />
-            <TimeInput
-              icon={ClockIcon}
-              label="Window From"
-              inputKey="windowStart"
-              index={index}
-              input={input}
-              handleInputChange={handleInputChange}
-              setEditing={setEditing}
-            />
-            <TimeInput
-              icon={ClockIcon}
-              label="Window Until"
-              inputKey="windowEnd"
-              index={index}
-              input={input}
-              handleInputChange={handleInputChange}
-              setEditing={setEditing}
             />
             <NumberInput
               icon={NumberIcon}
-              label="Opens per day"
-              inputKey="timesPerDay"
-              index={index}
-              input={input}
-              handleInputChange={handleInputChange}
-              setEditing={setEditing}
-            />
-            <NumberInput
-              icon={NumberIcon}
-              label="Min gap (min)"
+              label="Min gap between opens (min)"
               inputKey="minGapMinutes"
               min={0}
               index={index}

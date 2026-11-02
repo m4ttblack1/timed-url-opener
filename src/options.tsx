@@ -19,7 +19,7 @@ import { ThemeSelectButton } from "~components/form/theme-select-button"
 import { Modal } from "~components/modal"
 import { OptionInput } from "~components/option-input"
 import { menuBarIcons } from "~config"
-import { generateUUID } from "~utils"
+import { defaultDayRules, generateUUID } from "~utils"
 
 import { version } from "../package.json"
 
@@ -36,12 +36,18 @@ export type ScheduleInput = {
   uuid: string
   added_at: string
   is_valid: boolean
-  // "random" frequency only. Optional so schedules saved before this option existed still load.
-  days?: number[] // 0 = Sunday ... 6 = Saturday
-  windowStart?: string // "HH:mm", window start (inclusive)
-  windowEnd?: string // "HH:mm", window end (exclusive)
-  timesPerDay?: number
+  // "random" frequency only: one rule per day of the week
+  dayRules?: DayRule[]
   minGapMinutes?: number
+}
+
+// One row of the "random" frequency: what to do on one day of the week
+export type DayRule = {
+  day: number // 0 = Sunday ... 6 = Saturday
+  enabled: boolean
+  timesPerDay: number
+  windowStart: string // "HH:mm", inclusive
+  windowEnd: string // "HH:mm", exclusive
 }
 
 export type Unit = "minutes" | "hours" | "days"
@@ -77,11 +83,8 @@ function OptionsIndex() {
         background: false,
         added_at: new Date().toISOString(),
         is_valid: false,
-        days: [1, 2, 3, 4, 5],
-        windowStart: "09:00",
-        windowEnd: "17:00",
-        timesPerDay: 3,
-        minGapMinutes: 30
+        dayRules: defaultDayRules(),
+        minGapMinutes: 0
       }
     ])
     toast("New schedule added.", { className: "bg-secondary", icon: "👏" })
