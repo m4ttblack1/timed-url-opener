@@ -8,18 +8,18 @@ import "~style.css"
 
 import {
   EyeIcon,
+  MarkGithubIcon,
   PeopleIcon,
   PlusIcon,
-  SearchIcon,
   StopwatchIcon
 } from "@primer/octicons-react"
 import dayjs from "dayjs"
 
+import { DayCalendar } from "~components/day-calendar"
 import { ThemeSelectButton } from "~components/form/theme-select-button"
 import { Modal } from "~components/modal"
 import { OptionInput } from "~components/option-input"
-import { WeekView } from "~components/week-view"
-import { menuBarIcons } from "~config"
+import { projectLinks } from "~config"
 import { defaultDayRules, generateUUID } from "~utils"
 
 import { version } from "../package.json"
@@ -59,26 +59,29 @@ const darkThemes = ["midnight-gold", "dark", "dracula", "dim", "synthwave", "sun
 const defaultTheme = "midnight-gold"
 
 function OptionsIndex() {
-  const [inputs, setInputs] = useStorage("inputs", [])
+  const [inputs, setInputs] = useStorage<ScheduleInput[]>("inputs", [])
   const [storedTheme, setTheme] = useStorage<string>({
     key: "theme",
     instance: new Storage({ copiedKeyList: ["theme"] })
   })
   const theme = storedTheme || defaultTheme
-  const [searchKeyword, setSearchKeyword] = useState<string>("")
-  const [view, setView] = useState<"schedules" | "week">("schedules")
+  const [selected, setSelected] = useState<number>(0)
   const [loading, setLoading] = useState<boolean>(true)
+
+  const schedules: ScheduleInput[] = inputs ?? []
+  // keep the selection valid after a schedule is deleted
+  const current = Math.min(selected, Math.max(0, schedules.length - 1))
 
   const handleAddInput = () => {
     setInputs([
-      ...inputs,
+      ...schedules,
       {
         enabled: true,
         title: "",
         url: "",
         time: dayjs().add(5, "minutes").format("HH:mm"),
         date: dayjs().format("YYYY-MM-DD"),
-        frequency: "daily",
+        frequency: "random",
         uuid: generateUUID(),
         amount: 1,
         unit: "minutes",
@@ -88,6 +91,7 @@ function OptionsIndex() {
         dayRules: defaultDayRules()
       }
     ])
+    setSelected(schedules.length)
     toast("New schedule added.", { className: "bg-secondary", icon: "👏" })
   }
 
@@ -101,6 +105,8 @@ function OptionsIndex() {
     }, 300)
   })
 
+  const selectedSchedule = schedules[current]
+
   return (
     <>
       <div
@@ -109,141 +115,107 @@ function OptionsIndex() {
         }`}
         data-theme={theme}>
         <input id="my-drawer" type="checkbox" className="drawer-toggle" />
-        <div className="drawer-content">
-          <div className="max-w-full mx-auto">
-            <Toaster
-              containerClassName="toast"
-              gutter={12}
-              toastOptions={{ duration: 2000 }}>
-              {(t) => (
-                <div className="text-base-100 alert text-lg w-11/12 bg-secondary">
-                  {resolveValue(t.icon, t)} {resolveValue(t.message, t)}
-                </div>
-              )}
-            </Toaster>
-            <div className="navbar bg-base-100 premium-navbar">
-              <div className="navbar-start">
-                <div>
-                  <label htmlFor="my-drawer">
-                    <div
-                      tabIndex={0}
-                      role="button"
-                      className="btn btn-ghost btn-circle drawer-button">
-                      <svg
-                        xmlns="http://www.w3.org/2000/svg"
-                        className="h-5 w-5"
-                        fill="none"
-                        viewBox="0 0 24 24"
-                        stroke="currentColor">
-                        <path
-                          strokeLinecap="round"
-                          strokeLinejoin="round"
-                          strokeWidth="2"
-                          d="M4 6h16M4 12h16M4 18h7"
-                        />
-                      </svg>
-                    </div>
-                  </label>
-                </div>
+        <div className="drawer-content flex min-h-screen flex-col">
+          <Toaster
+            containerClassName="toast"
+            gutter={12}
+            toastOptions={{ duration: 2000 }}>
+            {(t) => (
+              <div className="text-base-100 alert text-lg w-11/12 bg-secondary">
+                {resolveValue(t.icon, t)} {resolveValue(t.message, t)}
               </div>
-              {"  "}
-              <div className="navbar-center">
-                <StopwatchIcon size={24} />
-                <h1 className="text-xl ml-2 font-bold premium-title">Timed URL Opener</h1>
-                <span className="ml-4 text-sm align-baseline">v{version}</span>
-              </div>
-              <div className="navbar-end">
-                {Object.entries(menuBarIcons).map(([_, item]) => (
-                  <a
-                    key={item.name}
-                    href={item.href}
-                    target="_blank"
-                    title={item.title}>
-                    <button className="btn btn-ghost btn-circle">
-                      <item.icon size={24} />
-                    </button>
-                  </a>
-                ))}
-              </div>
-            </div>
-            <div className="p-4">
-              <div role="tablist" className="tabs tabs-boxed mb-4 w-fit">
-                <button
-                  role="tab"
-                  aria-selected={view === "schedules"}
-                  className={`tab ${view === "schedules" ? "tab-active" : ""}`}
-                  onClick={() => setView("schedules")}>
-                  Schedules
-                </button>
-                <button
-                  role="tab"
-                  aria-selected={view === "week"}
-                  className={`tab ${view === "week" ? "tab-active" : ""}`}
-                  onClick={() => setView("week")}>
-                  Week
-                </button>
-              </div>
-              {view === "week" ? (
-                <WeekView inputs={inputs} />
-              ) : (
-              <>
-              <div className="flex flex-row items-center">
-                <h2 className="text-xl">Schedules</h2>
-                <span className="ml-auto">
-                  <SearchIcon size={24} verticalAlign="middle" />
-                  <input
-                    type="text"
-                    placeholder="Filter Title..."
-                    value={searchKeyword}
-                    onChange={(e) => setSearchKeyword(e.target.value)}
-                    className="input input-bordered ml-2"
+            )}
+          </Toaster>
+
+          <div className="navbar premium-navbar bg-base-100 px-4">
+            <div className="navbar-start">
+              <label htmlFor="my-drawer" className="btn btn-ghost btn-circle" aria-label="Open menu">
+                <svg
+                  xmlns="http://www.w3.org/2000/svg"
+                  className="h-5 w-5"
+                  fill="none"
+                  viewBox="0 0 24 24"
+                  stroke="currentColor">
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth="2"
+                    d="M4 6h16M4 12h16M4 18h7"
                   />
-                </span>
-              </div>
-              {inputs
-                .filter((input) =>
-                  input.title
-                    .toLowerCase()
-                    .includes(searchKeyword.toLowerCase())
-                )
-                .map((input, index) => (
-                  <div key={index}>
-                    <OptionInput key={input.uuid} index={index} input={input} />
-                  </div>
-                ))}
-              <div className="divider p-4">
-                {!loading &&
-                  (searchKeyword.length === 0 ? (
-                    <button
-                      onClick={handleAddInput}
-                      className="btn btn-primary">
-                      <PlusIcon size={24} />
-                      Add Schedule
-                    </button>
-                  ) : (
-                    inputs.filter((input) =>
-                      input.title
-                        .toLowerCase()
-                        .includes(searchKeyword.toLowerCase())
-                    ).length === 0 && (
-                      <p className="text-center">
-                        No schedules found. Try adding a schedule .
-                      </p>
-                    )
-                  ))}
-              </div>
-              </>
-              )}
+                </svg>
+              </label>
+            </div>
+            <div className="navbar-center">
+              <StopwatchIcon size={24} />
+              <h1 className="premium-title ml-2 text-xl font-bold">Timed URL Opener</h1>
+              <span className="ml-3 text-sm opacity-60">v{version}</span>
+            </div>
+            <div className="navbar-end gap-2">
+              <a
+                href={projectLinks.github}
+                target="_blank"
+                rel="noreferrer"
+                title="View this project on GitHub"
+                aria-label="View this project on GitHub"
+                className="btn btn-ghost btn-circle">
+                <MarkGithubIcon size={20} />
+              </a>
+              <button onClick={handleAddInput} className="btn btn-primary btn-sm">
+                <PlusIcon size={18} />
+                Add schedule
+              </button>
             </div>
           </div>
+
+          <main className="grid flex-1 grid-cols-1 items-start gap-4 p-4 xl:grid-cols-2">
+            <section className="card min-w-0 bg-base-200 p-4">
+              {schedules.length === 0 ? (
+                <p className="py-8 text-center opacity-70">
+                  No schedules yet. Click Add schedule to create one.
+                </p>
+              ) : (
+                <>
+                  <div className="mb-4 flex flex-wrap gap-2" role="tablist" aria-label="Schedules">
+                    {schedules.map((schedule, i) => (
+                      <button
+                        key={schedule.uuid}
+                        role="tab"
+                        aria-selected={i === current}
+                        onClick={() => setSelected(i)}
+                        className={`btn btn-sm ${i === current ? "btn-secondary" : "btn-ghost"}`}>
+                        {schedule.title || "Untitled"}
+                      </button>
+                    ))}
+                  </div>
+                  {selectedSchedule && (
+                    <OptionInput
+                      key={selectedSchedule.uuid}
+                      index={current}
+                      input={selectedSchedule}
+                    />
+                  )}
+                </>
+              )}
+            </section>
+
+            <section className="card min-w-0 bg-base-200 p-4">
+              <DayCalendar inputs={schedules} />
+            </section>
+          </main>
+
+          <footer className="px-4 pb-6 text-center text-sm opacity-70">
+            Forked from{" "}
+            <a href={projectLinks.original} target="_blank" rel="noreferrer" className="link">
+              Timed URL Opener
+            </a>{" "}
+            by {projectLinks.originalAuthor}, released under the MIT License. Thank you to the
+            original author.
+          </footer>
         </div>
+
         <div className="drawer-side">
-          <label
-            htmlFor="my-drawer"
-            aria-label="close sidebar"
-            className="drawer-overlay"></label>
-          <ul className="menu p-4 w-80 min-h-full bg-base-200 text-base-content">
-            {/* Sidebar content here */}
+          <label htmlFor="my-drawer" aria-label="close sidebar" className="drawer-overlay"></label>
+          <ul className="menu min-h-full w-80 bg-base-200 p-4 text-base-content">
             <li>
               <label htmlFor="theme_modal">
                 <EyeIcon size={20} />
@@ -258,15 +230,16 @@ function OptionsIndex() {
             </li>
           </ul>
         </div>
+
         <Modal
           id="theme_modal"
           icon={<EyeIcon size={24} />}
           lead="Theme"
           body={
             <>
-              <h3 className="text-lg mb-2">Light Themes</h3>
+              <h3 className="mb-2 text-lg">Light themes</h3>
               <div className="join mb-2">
-                {Array.from(lightThemes).map((target) => (
+                {lightThemes.map((target) => (
                   <ThemeSelectButton
                     key={target}
                     current={theme}
@@ -275,9 +248,9 @@ function OptionsIndex() {
                   />
                 ))}
               </div>
-              <h3 className="text-lg mb-2">Dark Themes</h3>
+              <h3 className="mb-2 text-lg">Dark themes</h3>
               <div className="join">
-                {Array.from(darkThemes).map((target) => (
+                {darkThemes.map((target) => (
                   <ThemeSelectButton
                     key={target}
                     current={theme}
@@ -295,10 +268,17 @@ function OptionsIndex() {
           lead="About"
           body={
             <>
-              <p>Timed URL Opener is a browser extension that allows you to open a URL at a specific time.</p>
+              <p>Timed URL Opener opens a URL at times you choose, including random times on the days you pick.</p>
               <p className="mt-4 text-sm opacity-80">
-                Based on Timed URL Opener by Shuhei Hayashibara, released under the MIT License.
-                Original project: github.com/shufo/timed-url-opener
+                Based on Timed URL Opener by {projectLinks.originalAuthor}, released under the MIT
+                License.{" "}
+                <a href={projectLinks.original} target="_blank" rel="noreferrer" className="link">
+                  Original project
+                </a>
+                {" · "}
+                <a href={projectLinks.github} target="_blank" rel="noreferrer" className="link">
+                  This fork
+                </a>
               </p>
             </>
           }
@@ -307,7 +287,6 @@ function OptionsIndex() {
       {loading && (
         <div className="fixed inset-0 bg-blur z-50">
           <div className="fixed inset-0 bg-blur z-50 flex items-center justify-center">
-            {/* Loading spinner goes here */}
             <div className="border-t-4 border-blue-500 border-solid rounded-full animate-spin h-12 w-12"></div>
           </div>
         </div>
