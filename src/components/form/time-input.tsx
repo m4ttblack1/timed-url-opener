@@ -8,6 +8,8 @@ type Props = {
   label: string
   input: ScheduleInput
   index: number
+  // which schedule field this input writes to (defaults to "time")
+  inputKey?: keyof ScheduleInput
   handleInputChange: (index: number, key: string, value: any) => void
   setEditing: React.Dispatch<React.SetStateAction<boolean>>
 }
@@ -17,10 +19,11 @@ export const TimeInput: FC<Props> = ({
   label,
   input,
   index,
+  inputKey = "time",
   handleInputChange,
   setEditing
 }) => {
-  const [time, setTime] = useState(input.time)
+  const [time, setTime] = useState(input[inputKey] as string)
   const [timer, setTimer] = useState(null)
   const Icon = icon
 
@@ -51,7 +54,7 @@ export const TimeInput: FC<Props> = ({
         type="time"
         value={time}
         onChange={(e) => {
-          handleChange(index, "time", e.target.value)
+          handleChange(index, inputKey, e.target.value)
         }}
         className="input input-bordered input-secondary mt-1 p-2 border rounded-md w-full"
       />

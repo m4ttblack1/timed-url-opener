@@ -8,6 +8,9 @@ type Props = {
   label: string
   input: ScheduleInput
   index: number
+  // which schedule field this input writes to (defaults to "amount")
+  inputKey?: keyof ScheduleInput
+  min?: number
   handleInputChange: (index: number, key: string, value: any) => void
   setEditing: React.Dispatch<React.SetStateAction<boolean>>
 }
@@ -17,10 +20,12 @@ export const NumberInput: FC<Props> = ({
   label,
   input,
   index,
+  inputKey = "amount",
+  min = 1,
   handleInputChange,
   setEditing
 }) => {
-  const [amount, setAmount] = useState(input.amount)
+  const [amount, setAmount] = useState(input[inputKey])
   const [timer, setTimer] = useState(null)
   const Icon = icon
 
@@ -47,10 +52,10 @@ export const NumberInput: FC<Props> = ({
       </label>
       <input
         type="number"
-        min="1"
-        value={amount}
+        min={min}
+        value={amount as number}
         onChange={(e) => {
-          handleChange(index, "amount", e.target.value)
+          handleChange(index, inputKey, e.target.value)
         }}
         className="input input-bordered input-secondary mt-1 p-2 w-16"
       />

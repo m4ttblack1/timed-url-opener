@@ -13,6 +13,8 @@ import toast from "react-hot-toast"
 
 import { useStorage } from "@plasmohq/storage/hook"
 
+import { randomScheduleError } from "~utils"
+
 import { DateInput } from "./form/date-input"
 import { NumberInput } from "./form/number-input"
 import { SelectInput } from "./form/select-input"
@@ -20,6 +22,7 @@ import { TextInput } from "./form/text-input"
 import { TimeInput } from "./form/time-input"
 import { ToggleInput } from "./form/toggle-input"
 import { UrlInput } from "./form/url-input"
+import { WeekdayInput } from "./form/weekday-input"
 import { Schedules } from "./schedules"
 
 export const OptionInput = ({ input, index }) => {
@@ -72,7 +75,8 @@ export const OptionInput = ({ input, index }) => {
             { key: "Every", value: "every" },
             { key: "Daily", value: "daily" },
             { key: "Weekday", value: "weekday" },
-            { key: "Oneshot", value: "oneshot" }
+            { key: "Oneshot", value: "oneshot" },
+            { key: "Random", value: "random" }
           ]}
         />
 
@@ -140,6 +144,55 @@ export const OptionInput = ({ input, index }) => {
             handleInputChange={handleInputChange}
             setEditing={setEditing}
           />
+        )}
+        {input.frequency === "random" && (
+          <>
+            <WeekdayInput
+              index={index}
+              input={input}
+              handleInputChange={handleInputChange}
+            />
+            <TimeInput
+              icon={ClockIcon}
+              label="Window From"
+              inputKey="windowStart"
+              index={index}
+              input={input}
+              handleInputChange={handleInputChange}
+              setEditing={setEditing}
+            />
+            <TimeInput
+              icon={ClockIcon}
+              label="Window Until"
+              inputKey="windowEnd"
+              index={index}
+              input={input}
+              handleInputChange={handleInputChange}
+              setEditing={setEditing}
+            />
+            <NumberInput
+              icon={NumberIcon}
+              label="Opens per day"
+              inputKey="timesPerDay"
+              index={index}
+              input={input}
+              handleInputChange={handleInputChange}
+              setEditing={setEditing}
+            />
+            <NumberInput
+              icon={NumberIcon}
+              label="Min gap (min)"
+              inputKey="minGapMinutes"
+              min={0}
+              index={index}
+              input={input}
+              handleInputChange={handleInputChange}
+              setEditing={setEditing}
+            />
+            {randomScheduleError(input) && (
+              <p className="w-full text-error">{randomScheduleError(input)}</p>
+            )}
+          </>
         )}
         <div className="w-full prose md:ml-2 xl:ml-auto">
           <div>

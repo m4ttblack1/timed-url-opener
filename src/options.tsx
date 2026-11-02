@@ -36,10 +36,16 @@ export type ScheduleInput = {
   uuid: string
   added_at: string
   is_valid: boolean
+  // "random" frequency only. Optional so schedules saved before this option existed still load.
+  days?: number[] // 0 = Sunday ... 6 = Saturday
+  windowStart?: string // "HH:mm", window start (inclusive)
+  windowEnd?: string // "HH:mm", window end (exclusive)
+  timesPerDay?: number
+  minGapMinutes?: number
 }
 
 export type Unit = "minutes" | "hours" | "days"
-export type Frequency = "every" | "daily" | "weekday" | "oneshot"
+export type Frequency = "every" | "daily" | "weekday" | "oneshot" | "random"
 
 const lightThemes = ["light", "nord", "valentine", "retro", "lofi", "cupcake"]
 const darkThemes = ["dark", "dracula", "dim", "synthwave", "sunset", "coffee"]
@@ -68,7 +74,12 @@ function OptionsIndex() {
         unit: "minutes",
         background: false,
         added_at: new Date().toISOString(),
-        is_valid: false
+        is_valid: false,
+        days: [1, 2, 3, 4, 5],
+        windowStart: "09:00",
+        windowEnd: "17:00",
+        timesPerDay: 3,
+        minGapMinutes: 30
       }
     ])
     toast("New schedule added.", { className: "bg-secondary", icon: "👏" })

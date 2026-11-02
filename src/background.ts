@@ -1,7 +1,7 @@
 import { Storage } from "@plasmohq/storage"
 import dayjs from "dayjs";
 import type { ScheduleInput } from "~options";
-import { computeNextAlarmTime, computeNextFiveWeekdayAlarmTime, generateNext5Dates } from "~utils";
+import { computeNextAlarmTime, computeNextFiveWeekdayAlarmTime, generateNext5Dates, planRandomTimes } from "~utils";
 
 // @ts-ignore
 import activeIcon from "../assets/icon_active_32x32.png"
@@ -11,6 +11,12 @@ import inactiveIcon from "../assets/icon_inactive_32x32.png"
 const env = process.env.NODE_ENV;
 const envPrefix = env === "development" ? "DEV | " : "";
 const defaultTitle = `${envPrefix}Timed URL Opener`
+
+// Alarm names are `openURL<uuid>` with an optional `|<suffix>` for alarms that need
+// to be unique per date or time. The uuid is always the part before the first `|`.
+const OPEN_ALARM_PREFIX = "openURL";
+// Hourly alarm that re-plans "random" schedules, so the next days get planned after midnight
+const REFRESH_RANDOM_ALARM = "refreshRandomSchedules";
 
 const main = async () => {
 
@@ -45,13 +51,17 @@ const main = async () => {
     })
 
     async function updateAlarms() {
-        chrome.alarms.clearAll();
+        await chrome.alarms.clearAll();
 
-        const inputs: ScheduleInput[] = await storage.get("inputs");
+        const inputs: ScheduleInput[] = (await storage.get("inputs")) ?? [];
 
         await updateIcon(inputs);
 
-        inputs.forEach(async (input) => {
+        if (inputs.some((input) => input.frequency === "random")) {
+            chrome.alarms.create(REFRESH_RANDOM_ALARM, { periodInMinutes: 60 });
+        }
+
+        inputs.forEach((input) => {
 
             // return if url is empty
             if (!input.url) return;
@@ -79,6 +89,9 @@ const main = async () => {
                     return;
                 case "oneshot":
                     processOneshotFrequency(input);
+                    return;
+                case "random":
+                    processRandomFrequency(input);
                     return;
                 default:
                     return;
@@ -138,7 +151,7 @@ const main = async () => {
 
         const next5Dates = generateNext5Dates(input);
 
-        chrome.alarms.create(`openURL${input.uuid}`, {
+        chrome.alarms.create(`${OPEN_ALARM_PREFIX}${input.uuid}`, {
             when: startTime.valueOf() < currentTime.valueOf() ?
                 next5Dates.at(0).valueOf() // if startTime is before currentTime, set alarm to next first date
                 : startTime.valueOf(), // else set alarm to startTime
@@ -147,7 +160,7 @@ const main = async () => {
     }
 
     function processDailyFrequency(input: ScheduleInput) {
-        chrome.alarms.create(`openURL${input.uuid}`, {
+        chrome.alarms.create(`${OPEN_ALARM_PREFIX}${input.uuid}`, {
             when: computeNextAlarmTime(input.time),
             periodInMinutes: 24 * 60,
         });
@@ -156,8 +169,8 @@ const main = async () => {
     function processWeekdayFrequency(input: ScheduleInput) {
         const dates = computeNextFiveWeekdayAlarmTime(input.time);
 
-        dates.forEach(async (date) => {
-            await chrome.alarms.create(`openURL${input.uuid}${date.valueOf()}`, {
+        dates.forEach((date) => {
+            chrome.alarms.create(`${OPEN_ALARM_PREFIX}${input.uuid}|${date.valueOf()}`, {
                 when: date.valueOf(),
                 periodInMinutes: 24 * 60 * 7,
             });
@@ -165,18 +178,69 @@ const main = async () => {
     }
 
     function processOneshotFrequency(input: ScheduleInput) {
-        chrome.alarms.create(`openURL${input.uuid}`, {
+        chrome.alarms.create(`${OPEN_ALARM_PREFIX}${input.uuid}`, {
             when: computeNextAlarmTime(input.time),
         });
     }
 
+    // Plans one-off alarms for today and tomorrow. Each alarm is named with its date and
+    // index, so re-planning can find and replace them. Times already in the past are skipped.
+    function processRandomFrequency(input: ScheduleInput) {
+        if (!input.enabled) return;
+
+        const now = dayjs();
+
+        for (const offset of [0, 1]) {
+            const day = now.add(offset, "day");
+
+            planRandomTimes(input, day).forEach((when, index) => {
+                if (!when.isAfter(now)) return;
+
+                chrome.alarms.create(`${OPEN_ALARM_PREFIX}${input.uuid}|${day.format("YYYYMMDD")}|${index}`, {
+                    when: when.valueOf(),
+                });
+            });
+        }
+    }
+
+    // Rebuilds only the random-frequency alarms. This is cheaper than a full updateAlarms(),
+    // and it must not touch other schedules: one-shot and weekday alarms recreated with their
+    // original timing would fire again.
+    async function refreshRandomAlarms() {
+        const inputs: ScheduleInput[] = (await storage.get("inputs")) ?? [];
+        const randomInputs = inputs.filter((input) => input.frequency === "random" && input.enabled && input.url);
+
+        if (randomInputs.length === 0) return;
+
+        const alarms = await chrome.alarms.getAll();
+
+        for (const input of randomInputs) {
+            for (const alarm of alarms) {
+                if (alarm.name.startsWith(`${OPEN_ALARM_PREFIX}${input.uuid}|`)) {
+                    await chrome.alarms.clear(alarm.name);
+                }
+            }
+
+            processRandomFrequency(input);
+        }
+    }
+
     // open url when alarm is triggered
     chrome.alarms.onAlarm.addListener(async alarm => {
-        const uuid = alarm.name.substring('openURL'.length);
-        const inputs: ScheduleInput[] = await storage.get("inputs");
+        if (alarm.name === REFRESH_RANDOM_ALARM) {
+            await refreshRandomAlarms();
+            return;
+        }
+
+        // strip the prefix, then drop any `|suffix` to get the schedule uuid
+        const uuid = alarm.name.substring(OPEN_ALARM_PREFIX.length).split("|")[0];
+        const inputs: ScheduleInput[] = (await storage.get("inputs")) ?? [];
 
         // get property from inputs matched uuid
-        const { enabled, url, background } = inputs.find(({ uuid: inputUUID }) => inputUUID === uuid);
+        const schedule = inputs.find(({ uuid: inputUUID }) => inputUUID === uuid);
+        if (!schedule) return;
+
+        const { enabled, url, background } = schedule;
 
         // do nothing if not enabled
         if (!enabled) return;
