@@ -1,6 +1,8 @@
 import dayjs from "dayjs"
 import React, { FC, useEffect, useState } from "react"
 
+import { useStorage } from "@plasmohq/storage/hook"
+
 import type { ScheduleInput } from "~options"
 
 import { collectWeekEntries } from "./week-view"
@@ -9,11 +11,17 @@ type Props = {
   inputs: ScheduleInput[]
 }
 
+type OpenRecord = { uuid: string; url: string; at: number }
+
+// An open counts as "Opened" if the log has it within two minutes of the planned time
+const MATCH_WINDOW_MS = 2 * 60 * 1000
+
 // One day at a time, with arrows to step through the calendar
 export const DayCalendar: FC<Props> = ({ inputs }) => {
   const [offset, setOffset] = useState(0) // days from today
+  const [openLog] = useStorage<OpenRecord[]>("openLog", [])
 
-  // re-check once a minute so passed opens drop off
+  // re-check once a minute so passed opens update
   const [, setTick] = useState(0)
   useEffect(() => {
     const id = setInterval(() => setTick((t) => t + 1), 60_000)
@@ -24,10 +32,27 @@ export const DayCalendar: FC<Props> = ({ inputs }) => {
   const today = now.startOf("day")
   const day = today.add(offset, "day")
 
-  const dayEntries = collectWeekEntries(inputs, day).filter((entry) =>
+  const dayEntries = collectWeekEntries(inputs, day, true).filter((entry) =>
     entry.time.isSame(day, "day")
   )
   const nextOpen = collectWeekEntries(inputs, today).find((entry) => entry.time.isAfter(now))
+
+  const statusFor = (entry: { time: dayjs.Dayjs; uuid: string }): "upcoming" | "opened" | "missed" => {
+    if (entry.time.isAfter(now)) return "upcoming"
+    const logged = (openLog ?? []).some(
+      (record) =>
+        record.uuid === entry.uuid && Math.abs(record.at - entry.time.valueOf()) <= MATCH_WINDOW_MS
+    )
+    return logged ? "opened" : "missed"
+  }
+
+  const counts = dayEntries.reduce(
+    (acc, entry) => {
+      acc[statusFor(entry)] += 1
+      return acc
+    },
+    { upcoming: 0, opened: 0, missed: 0 }
+  )
 
   const relative =
     offset === 0 ? "Today" : offset === 1 ? "Tomorrow" : offset === -1 ? "Yesterday" : ""
@@ -78,20 +103,38 @@ export const DayCalendar: FC<Props> = ({ inputs }) => {
 
       <div className="text-sm opacity-70">
         {dayEntries.length} open{dayEntries.length === 1 ? "" : "s"}
+        {counts.opened > 0 && `, ${counts.opened} opened`}
+        {counts.missed > 0 && `, ${counts.missed} missed`}
       </div>
 
       <ul className="flex max-h-[60vh] flex-col gap-2 overflow-y-auto pr-1">
-        {dayEntries.map((entry, i) => (
-          <li key={i} className="flex items-center gap-3 rounded-box bg-base-100 px-3 py-2">
-            <span className="h-2 w-2 shrink-0 rounded-full bg-primary" aria-hidden="true" />
-            <span className="font-mono">{entry.time.format("HH:mm")}</span>
-            <span className="flex-1 truncate text-sm">{entry.label}</span>
-          </li>
-        ))}
+        {dayEntries.map((entry, i) => {
+          const status = statusFor(entry)
+          return (
+            <li key={i} className="flex items-center gap-3 rounded-box bg-base-100 px-3 py-2">
+              <span
+                className={`h-2 w-2 shrink-0 rounded-full ${
+                  status === "missed" ? "bg-error" : status === "opened" ? "bg-success" : "bg-primary"
+                }`}
+                aria-hidden="true"
+              />
+              <span className="font-mono">{entry.time.format("HH:mm")}</span>
+              <span className="flex-1 truncate text-sm">{entry.label}</span>
+              <span className="text-xs opacity-70">
+                {status === "upcoming" ? "" : status === "opened" ? "Opened" : "Missed"}
+              </span>
+            </li>
+          )
+        })}
         {dayEntries.length === 0 && (
           <li className="text-sm opacity-60">Nothing planned for this day.</li>
         )}
       </ul>
+
+      <p className="text-xs opacity-60">
+        Chrome must be open for opens to happen. "Missed" means no open was recorded at that time,
+        for example because Chrome was closed.
+      </p>
     </div>
   )
 }

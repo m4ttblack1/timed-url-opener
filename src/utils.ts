@@ -139,19 +139,44 @@ export const planRandomTimes = (input: ScheduleInput, day: Dayjs): Dayjs[] => {
     const rule = findDayRule(input, day.day())
     if (!rule) return []
 
-    const start = parseMinuteOfDay(rule.windowStart)
-    const end = parseMinuteOfDay(rule.windowEnd)
-    if (start === null || end === null || end <= start) return []
+    const dateText = day.format("YYYY-MM-DD")
+
+    // Convert the window to real clock times on this date. On days when the clocks
+    // change, the number of real minutes in the window differs from the wall-clock difference,
+    // so the window is measured in real time between its two ends.
+    const startAt = dayjs(`${dateText} ${rule.windowStart}`)
+    const endAt = dayjs(`${dateText} ${rule.windowEnd}`)
+    if (!startAt.isValid() || !endAt.isValid() || !endAt.isAfter(startAt)) return []
 
     const perDay = Math.floor(Number(rule.timesPerDay))
     if (!(perDay >= 1)) return []
 
-    const rand = seededRandom(hashSeed(`${input.uuid}|${day.format("YYYY-MM-DD")}`))
-    const offsets = pickSpacedOffsets(end - start - 1, perDay, Number(rule.minGapMinutes) || 0, rand)
+    const totalMinutes = endAt.diff(startAt, "minute")
+    const rand = seededRandom(hashSeed(`${input.uuid}|${dateText}`))
+    const offsets = pickSpacedOffsets(totalMinutes - 1, perDay, Number(rule.minGapMinutes) || 0, rand)
 
     return offsets
         .sort((a, b) => a - b)
-        .map((offset) => day.startOf("day").add(start + offset, "minute"))
+        .map((offset) => startAt.add(offset, "minute"))
+}
+
+// Turns schedules saved by the first version of Random (one shared set of days and
+// window) into per-day rules. Schedules that already have dayRules are returned unchanged.
+export const migrateRandomInput = (input: any): ScheduleInput => {
+    if (input.frequency !== "random" || Array.isArray(input.dayRules)) return input as ScheduleInput
+
+    const days: number[] = Array.isArray(input.days) ? input.days : []
+    const dayRules = defaultDayRules().map((rule) => ({
+        ...rule,
+        enabled: days.includes(rule.day),
+        timesPerDay: Number(input.timesPerDay) || rule.timesPerDay,
+        minGapMinutes: Number(input.minGapMinutes) || 0,
+        windowStart: input.windowStart || rule.windowStart,
+        windowEnd: input.windowEnd || rule.windowEnd,
+    }))
+
+    const { days: _days, windowStart: _ws, windowEnd: _we, timesPerDay: _tpd, minGapMinutes: _mgm, ...rest } = input
+    return { ...rest, dayRules } as ScheduleInput
 }
 
 // A message describing why a "random" schedule cannot run, or null if it is valid

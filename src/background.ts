@@ -1,7 +1,11 @@
 import { Storage } from "@plasmohq/storage"
 import dayjs from "dayjs";
 import type { ScheduleInput } from "~options";
-import { computeNextAlarmTime, computeNextFiveWeekdayAlarmTime, generateNext5Dates, planRandomTimes } from "~utils";
+import { computeNextAlarmTime, computeNextFiveWeekdayAlarmTime, generateNext5Dates, migrateRandomInput, planRandomTimes } from "~utils";
+
+// Record of each open that actually happened, shown by the calendar. Kept short.
+const OPEN_LOG_KEY = "openLog";
+const OPEN_LOG_LIMIT = 300;
 
 // @ts-ignore
 import activeIcon from "../assets/icon_active_32x32.png"
@@ -53,7 +57,7 @@ const main = async () => {
     async function updateAlarms() {
         await chrome.alarms.clearAll();
 
-        const inputs: ScheduleInput[] = (await storage.get("inputs")) ?? [];
+        const inputs: ScheduleInput[] = await loadInputs();
 
         await updateIcon(inputs);
 
@@ -207,7 +211,7 @@ const main = async () => {
     // and it must not touch other schedules: one-shot and weekday alarms recreated with their
     // original timing would fire again.
     async function refreshRandomAlarms() {
-        const inputs: ScheduleInput[] = (await storage.get("inputs")) ?? [];
+        const inputs: ScheduleInput[] = await loadInputs();
         const randomInputs = inputs.filter((input) => input.frequency === "random" && input.enabled && input.url);
 
         if (randomInputs.length === 0) return;
@@ -225,6 +229,19 @@ const main = async () => {
         }
     }
 
+    // Loads schedules, upgrading any saved by the first version of Random
+    async function loadInputs(): Promise<ScheduleInput[]> {
+        const raw = ((await storage.get("inputs")) ?? []) as any[];
+        return raw.map(migrateRandomInput);
+    }
+
+    // Adds an entry to the open log that the calendar reads
+    async function recordOpen(uuid: string, url: string) {
+        const log: { uuid: string; url: string; at: number }[] = (await storage.get(OPEN_LOG_KEY)) ?? [];
+        log.push({ uuid, url, at: Date.now() });
+        await storage.set(OPEN_LOG_KEY, log.slice(-OPEN_LOG_LIMIT));
+    }
+
     // open url when alarm is triggered
     chrome.alarms.onAlarm.addListener(async alarm => {
         if (alarm.name === REFRESH_RANDOM_ALARM) {
@@ -234,7 +251,7 @@ const main = async () => {
 
         // strip the prefix, then drop any `|suffix` to get the schedule uuid
         const uuid = alarm.name.substring(OPEN_ALARM_PREFIX.length).split("|")[0];
-        const inputs: ScheduleInput[] = (await storage.get("inputs")) ?? [];
+        const inputs: ScheduleInput[] = await loadInputs();
 
         // get property from inputs matched uuid
         const schedule = inputs.find(({ uuid: inputUUID }) => inputUUID === uuid);
@@ -249,6 +266,7 @@ const main = async () => {
         // open url
         if (url) {
             chrome.tabs.create({ url, active });
+            await recordOpen(uuid, url);
             setIconActive()
         }
     });

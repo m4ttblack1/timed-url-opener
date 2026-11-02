@@ -20,7 +20,7 @@ import { ThemeSelectButton } from "~components/form/theme-select-button"
 import { Modal } from "~components/modal"
 import { OptionInput } from "~components/option-input"
 import { projectLinks } from "~config"
-import { defaultDayRules, generateUUID } from "~utils"
+import { defaultDayRules, generateUUID, migrateRandomInput } from "~utils"
 
 import { version } from "../package.json"
 
@@ -94,6 +94,12 @@ function OptionsIndex() {
     setSelected(schedules.length)
     toast("New schedule added.", { className: "bg-secondary", icon: "👏" })
   }
+
+  // Upgrade schedules saved by the first version of Random to per-day rules
+  useEffect(() => {
+    if (!inputs || !inputs.some((input) => input.frequency === "random" && !input.dayRules)) return
+    setInputs(inputs.map(migrateRandomInput))
+  }, [inputs])
 
   useEffect(() => {
     try {

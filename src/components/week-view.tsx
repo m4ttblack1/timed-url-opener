@@ -9,10 +9,15 @@ export type Entry = {
   time: Dayjs
   label: string
   url: string
+  uuid: string
 }
 
 // Every open time for enabled schedules over the 7 days from `start`, in time order
-export const collectWeekEntries = (inputs: ScheduleInput[], start: Dayjs): Entry[] => {
+export const collectWeekEntries = (
+  inputs: ScheduleInput[],
+  start: Dayjs,
+  includePast = false
+): Entry[] => {
   const end = start.add(DAYS_SHOWN, "day")
   const now = dayjs()
   const entries: Entry[] = []
@@ -36,9 +41,9 @@ export const collectWeekEntries = (inputs: ScheduleInput[], start: Dayjs): Entry
     }
 
     times
-      .filter((time) => time.isAfter(now) && time.isBefore(end))
+      .filter((time) => (includePast || time.isAfter(now)) && time.isBefore(end))
       .forEach((time) => {
-        entries.push({ time, label: input.title || input.url, url: input.url })
+        entries.push({ time, label: input.title || input.url, url: input.url, uuid: input.uuid })
       })
   }
 

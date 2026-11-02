@@ -1,4 +1,4 @@
-import React, { FC, useRef, useState } from "react"
+import React, { FC, useEffect, useRef, useState } from "react"
 
 import type { DayRule, ScheduleInput } from "~options"
 import { DAY_NAMES } from "~utils"
@@ -9,35 +9,60 @@ type Props = {
   handleInputChange: (index: number, key: string, value: any) => void
 }
 
-type Draft = Partial<Pick<DayRule, "timesPerDay" | "minGapMinutes" | "windowStart" | "windowEnd">>
+type Patch = Partial<Pick<DayRule, "enabled" | "timesPerDay" | "minGapMinutes" | "windowStart" | "windowEnd">>
 
 // One row per day of the week: on/off, number of opens, and the from/until window
 export const DayRulesInput: FC<Props> = ({ input, index, handleInputChange }) => {
   const rules = input.dayRules ?? []
 
-  // Typed values are shown straight away and saved after a short pause, like the other inputs
-  const [drafts, setDrafts] = useState<Record<number, Draft>>({})
-  const timers = useRef<Record<number, ReturnType<typeof setTimeout>>>({})
+  // What the user is typing, shown straight away
+  const [drafts, setDrafts] = useState<Record<number, Patch>>({})
 
-  const saveRule = (day: number, patch: Partial<DayRule>) => {
-    // read input.dayRules when saving, so an earlier save for another day is not lost
-    const next = (input.dayRules ?? []).map((rule) =>
+  // The latest full set of rules, including changes not yet saved. Every change is
+  // merged into this copy, so two quick edits to different days cannot overwrite each other.
+  const latest = useRef<DayRule[]>(rules)
+  const pending = useRef(false)
+  const timer = useRef<ReturnType<typeof setTimeout> | null>(null)
+
+  // When nothing is waiting to be saved, follow the stored rules
+  useEffect(() => {
+    if (!pending.current) latest.current = input.dayRules ?? []
+  }, [input.dayRules])
+
+  const flush = () => {
+    if (timer.current) clearTimeout(timer.current)
+    timer.current = null
+    if (!pending.current) return
+    pending.current = false
+    handleInputChange(index, "dayRules", latest.current)
+  }
+
+  const queue = (day: number, patch: Patch, saveNow: boolean) => {
+    latest.current = latest.current.map((rule) =>
       rule.day === day ? { ...rule, ...patch } : rule
     )
-    handleInputChange(index, "dayRules", next)
+    pending.current = true
+
+    if (timer.current) clearTimeout(timer.current)
+    if (saveNow) {
+      flush()
+    } else {
+      timer.current = setTimeout(flush, 600)
+    }
   }
 
   const changeEnabled = (day: number, enabled: boolean) => {
-    saveRule(day, { enabled })
+    setDrafts((prev) => {
+      const next = { ...prev }
+      delete next[day]
+      return next
+    })
+    queue(day, { enabled }, true)
   }
 
-  const changeField = (day: number, field: keyof Draft, value: string) => {
+  const changeField = (day: number, field: keyof Patch, value: string) => {
     setDrafts((prev) => ({ ...prev, [day]: { ...prev[day], [field]: value } }))
-
-    clearTimeout(timers.current[day])
-    timers.current[day] = setTimeout(() => {
-      saveRule(day, { [field]: value } as Partial<DayRule>)
-    }, 600)
+    queue(day, { [field]: value } as Patch, false)
   }
 
   return (
