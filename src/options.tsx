@@ -18,6 +18,7 @@ import dayjs from "dayjs"
 import { ThemeSelectButton } from "~components/form/theme-select-button"
 import { Modal } from "~components/modal"
 import { OptionInput } from "~components/option-input"
+import { WeekView } from "~components/week-view"
 import { menuBarIcons } from "~config"
 import { defaultDayRules, generateUUID } from "~utils"
 
@@ -65,6 +66,7 @@ function OptionsIndex() {
   })
   const theme = storedTheme || defaultTheme
   const [searchKeyword, setSearchKeyword] = useState<string>("")
+  const [view, setView] = useState<"schedules" | "week">("schedules")
   const [loading, setLoading] = useState<boolean>(true)
 
   const handleAddInput = () => {
@@ -166,6 +168,26 @@ function OptionsIndex() {
               </div>
             </div>
             <div className="p-4">
+              <div role="tablist" className="tabs tabs-boxed mb-4 w-fit">
+                <button
+                  role="tab"
+                  aria-selected={view === "schedules"}
+                  className={`tab ${view === "schedules" ? "tab-active" : ""}`}
+                  onClick={() => setView("schedules")}>
+                  Schedules
+                </button>
+                <button
+                  role="tab"
+                  aria-selected={view === "week"}
+                  className={`tab ${view === "week" ? "tab-active" : ""}`}
+                  onClick={() => setView("week")}>
+                  Week
+                </button>
+              </div>
+              {view === "week" ? (
+                <WeekView inputs={inputs} />
+              ) : (
+              <>
               <div className="flex flex-row items-center">
                 <h2 className="text-xl">Schedules</h2>
                 <span className="ml-auto">
@@ -211,6 +233,8 @@ function OptionsIndex() {
                     )
                   ))}
               </div>
+              </>
+              )}
             </div>
           </div>
         </div>
