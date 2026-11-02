@@ -23,7 +23,6 @@ import { TimeInput } from "./form/time-input"
 import { ToggleInput } from "./form/toggle-input"
 import { UrlInput } from "./form/url-input"
 import { DayRulesInput } from "./form/day-rules-input"
-import { Schedules } from "./schedules"
 
 export const OptionInput = ({ input, index }) => {
   const [editing, setEditing] = useState(false)
@@ -157,30 +156,19 @@ export const OptionInput = ({ input, index }) => {
             )}
           </>
         )}
-        <div className="w-full prose md:ml-2 xl:ml-auto">
-          <div>
-            <Schedules input={input} editing={editing} />
-          </div>
-        </div>
-        <div className="collapse collapse-arrow bg-base-200 mb-4">
-          <input type="checkbox" name="my-accordion-2" />
-          <div className="collapse-title text-xl font-medium">
-            Advanced Options
-          </div>
-          <div className="collapse-content">
-            <div className="form-control">
-              <label className="label cursor-pointer">
-                <span className="label-text">Open Tab in Background</span>
-                <ToggleInput
-                  index={index}
-                  input={input}
-                  handleInputChange={handleInputChange}
-                  setEditing={setEditing}
-                  inputKey="background"
-                />
-              </label>
-            </div>
-          </div>
+        <div className="mt-4 md:mt-0">
+          <label className="label">
+            <span className="label-text">Open in</span>
+          </label>
+          <select
+            className="select select-bordered select-secondary mt-1 w-full"
+            value={input.background ? "background" : "active"}
+            onChange={(e) =>
+              handleInputChange(index, "background", e.target.value === "background")
+            }>
+            <option value="active">Active tab</option>
+            <option value="background">Background tab</option>
+          </select>
         </div>
       </div>
       <div className="form-control">
