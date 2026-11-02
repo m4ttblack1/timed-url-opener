@@ -3,3 +3,16 @@
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
+
+/* Gold-to-chrome gradient for headings */
+.premium-title {
+  background: linear-gradient(90deg, #f5d76e 0%, #d4af37 40%, #e8ecf2 70%, #c0c5ce 100%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+
+/* Thin gold rule under the navbar */
+.premium-navbar {
+  border-bottom: 1px solid rgba(212, 175, 55, 0.35);
+}

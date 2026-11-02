@@ -48,14 +48,16 @@ export type Unit = "minutes" | "hours" | "days"
 export type Frequency = "every" | "daily" | "weekday" | "oneshot" | "random"
 
 const lightThemes = ["light", "nord", "valentine", "retro", "lofi", "cupcake"]
-const darkThemes = ["dark", "dracula", "dim", "synthwave", "sunset", "coffee"]
+const darkThemes = ["midnight-gold", "dark", "dracula", "dim", "synthwave", "sunset", "coffee"]
+const defaultTheme = "midnight-gold"
 
 function OptionsIndex() {
   const [inputs, setInputs] = useStorage("inputs", [])
-  const [theme, setTheme] = useStorage<string>({
+  const [storedTheme, setTheme] = useStorage<string>({
     key: "theme",
     instance: new Storage({ copiedKeyList: ["theme"] })
   })
+  const theme = storedTheme || defaultTheme
   const [searchKeyword, setSearchKeyword] = useState<string>("")
   const [loading, setLoading] = useState<boolean>(true)
 
@@ -115,7 +117,7 @@ function OptionsIndex() {
                 </div>
               )}
             </Toaster>
-            <div className="navbar bg-base-100">
+            <div className="navbar bg-base-100 premium-navbar">
               <div className="navbar-start">
                 <div>
                   <label htmlFor="my-drawer">
@@ -143,7 +145,7 @@ function OptionsIndex() {
               {"  "}
               <div className="navbar-center">
                 <StopwatchIcon size={24} />
-                <h1 className="text-xl ml-2">Timed URL Opener</h1>
+                <h1 className="text-xl ml-2 font-bold premium-title">Timed URL Opener</h1>
                 <span className="ml-4 text-sm align-baseline">v{version}</span>
               </div>
               <div className="navbar-end">
@@ -265,7 +267,15 @@ function OptionsIndex() {
           id="about_modal"
           icon={<PeopleIcon size={24} />}
           lead="About"
-          body="Timed URL Opener is a browser extension that allows you to open a URL at a specific time."
+          body={
+            <>
+              <p>Timed URL Opener is a browser extension that allows you to open a URL at a specific time.</p>
+              <p className="mt-4 text-sm opacity-80">
+                Based on Timed URL Opener by Shuhei Hayashibara, released under the MIT License.
+                Original project: github.com/shufo/timed-url-opener
+              </p>
+            </>
+          }
         />
       </div>
       {loading && (

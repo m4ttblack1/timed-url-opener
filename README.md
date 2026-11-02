@@ -87,6 +87,10 @@ It will outputs production build to `build/chrome-mv3-prod` directory.
 4.  Push to the branch (`git push origin my-new-feature`)
 5.  Create new Pull Request
 
+## Credits
+
+This is a fork of [Timed URL Opener](https://github.com/shufo/timed-url-opener) by Shuhei Hayashibara. Thanks to the original author for building it. This fork adds the Random schedule option and a new premium dark look.
+
 ## LICENSE
 
-MIT
+MIT. See [LICENSE](LICENSE). The original copyright notice is kept in that file.
