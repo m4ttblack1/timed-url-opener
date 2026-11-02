@@ -152,16 +152,6 @@ export const OptionInput = ({ input, index }) => {
               input={input}
               handleInputChange={handleInputChange}
             />
-            <NumberInput
-              icon={NumberIcon}
-              label="Min gap between opens (min)"
-              inputKey="minGapMinutes"
-              min={0}
-              index={index}
-              input={input}
-              handleInputChange={handleInputChange}
-              setEditing={setEditing}
-            />
             {randomScheduleError(input) && (
               <p className="w-full text-error">{randomScheduleError(input)}</p>
             )}

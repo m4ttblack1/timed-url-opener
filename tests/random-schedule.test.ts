@@ -19,13 +19,15 @@ const randomInput = (options = {}) =>
     frequency: "random",
     url: "https://example.com",
     dayRules: defaultDayRules(),
-    minGapMinutes: 0,
     ...options
   })
 
 // Build day rules where only the given days are on
 const rulesFor = (
-  rules: Record<number, { timesPerDay: number; windowStart: string; windowEnd: string }>
+  rules: Record<
+    number,
+    { timesPerDay: number; windowStart: string; windowEnd: string; minGapMinutes?: number }
+  >
 ) =>
   defaultDayRules().map((rule) =>
     rules[rule.day]
@@ -113,8 +115,9 @@ describe("planRandomTimes with per-day rules", () => {
 
   it("respects the minimum gap between opens", () => {
     const input = randomInput({
-      dayRules: rulesFor({ 1: { timesPerDay: 5, windowStart: "09:00", windowEnd: "17:00" } }),
-      minGapMinutes: 45
+      dayRules: rulesFor({
+        1: { timesPerDay: 5, windowStart: "09:00", windowEnd: "17:00", minGapMinutes: 45 }
+      })
     })
     const times = planRandomTimes(input, dayjs("2026-11-02"))
 
@@ -185,10 +188,43 @@ describe("randomScheduleError", () => {
   it("rejects more opens than fit in the window with the minimum gap", () => {
     // 10:00-18:00 with a 30 minute gap fits at most 17 opens
     const input = randomInput({
-      dayRules: rulesFor({ 1: { timesPerDay: 18, windowStart: "10:00", windowEnd: "18:00" } }),
-      minGapMinutes: 30
+      dayRules: rulesFor({
+        1: { timesPerDay: 18, windowStart: "10:00", windowEnd: "18:00", minGapMinutes: 30 }
+      })
     })
     expect(randomScheduleError(input)).not.toBeNull()
+  })
+
+  it("gap is per day: a big gap on one day does not affect another", () => {
+    const input = randomInput({
+      dayRules: rulesFor({
+        1: { timesPerDay: 18, windowStart: "10:00", windowEnd: "18:00", minGapMinutes: 30 },
+        2: { timesPerDay: 18, windowStart: "10:00", windowEnd: "18:00", minGapMinutes: 0 }
+      })
+    })
+    // Monday is impossible with a 30 minute gap, so the error is about Monday
+    expect(randomScheduleError(input)).toMatch(/^Monday:/)
+
+    const tuesdayOnly = randomInput({
+      dayRules: rulesFor({
+        2: { timesPerDay: 18, windowStart: "10:00", windowEnd: "18:00", minGapMinutes: 0 }
+      })
+    })
+    expect(randomScheduleError(tuesdayOnly)).toBeNull()
+    expect(planRandomTimes(tuesdayOnly, dayjs("2026-11-03"))).toHaveLength(18)
+  })
+
+  it("applies each day's own gap when planning", () => {
+    const input = randomInput({
+      dayRules: rulesFor({
+        1: { timesPerDay: 4, windowStart: "10:00", windowEnd: "18:00", minGapMinutes: 60 },
+        2: { timesPerDay: 4, windowStart: "10:00", windowEnd: "18:00", minGapMinutes: 0 }
+      })
+    })
+    const monday = planRandomTimes(input, dayjs("2026-11-02"))
+    for (let i = 1; i < monday.length; i++) {
+      expect(monday[i].diff(monday[i - 1], "minute")).toBeGreaterThanOrEqual(60)
+    }
   })
 
   it("ignores days that are switched off", () => {

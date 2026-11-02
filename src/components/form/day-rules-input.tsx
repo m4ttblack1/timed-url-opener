@@ -9,7 +9,7 @@ type Props = {
   handleInputChange: (index: number, key: string, value: any) => void
 }
 
-type Draft = Partial<Pick<DayRule, "timesPerDay" | "windowStart" | "windowEnd">>
+type Draft = Partial<Pick<DayRule, "timesPerDay" | "minGapMinutes" | "windowStart" | "windowEnd">>
 
 // One row per day of the week: on/off, number of opens, and the from/until window
 export const DayRulesInput: FC<Props> = ({ input, index, handleInputChange }) => {
@@ -49,6 +49,7 @@ export const DayRulesInput: FC<Props> = ({ input, index, handleInputChange }) =>
         {rules.map((rule) => {
           const draft = drafts[rule.day] ?? {}
           const timesPerDay = draft.timesPerDay ?? rule.timesPerDay
+          const minGapMinutes = draft.minGapMinutes ?? rule.minGapMinutes
           const windowStart = draft.windowStart ?? rule.windowStart
           const windowEnd = draft.windowEnd ?? rule.windowEnd
           const dayName = DAY_NAMES[rule.day]
@@ -74,7 +75,17 @@ export const DayRulesInput: FC<Props> = ({ input, index, handleInputChange }) =>
                 onChange={(e) => changeField(rule.day, "timesPerDay", e.target.value)}
                 className="input input-bordered input-secondary input-sm w-20"
               />
-              <span>opens from</span>
+              <span>opens, at least</span>
+              <input
+                type="number"
+                min={0}
+                aria-label={`${dayName} minimum minutes between opens`}
+                disabled={!rule.enabled}
+                value={minGapMinutes}
+                onChange={(e) => changeField(rule.day, "minGapMinutes", e.target.value)}
+                className="input input-bordered input-secondary input-sm w-20"
+              />
+              <span>min apart, from</span>
               <input
                 type="time"
                 aria-label={`${dayName} from`}

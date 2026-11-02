@@ -39,7 +39,6 @@ export type ScheduleInput = {
   is_valid: boolean
   // "random" frequency only: one rule per day of the week
   dayRules?: DayRule[]
-  minGapMinutes?: number
 }
 
 // One row of the "random" frequency: what to do on one day of the week
@@ -47,6 +46,7 @@ export type DayRule = {
   day: number // 0 = Sunday ... 6 = Saturday
   enabled: boolean
   timesPerDay: number
+  minGapMinutes: number // shortest allowed time between two opens that day
   windowStart: string // "HH:mm", inclusive
   windowEnd: string // "HH:mm", exclusive
 }
@@ -85,8 +85,7 @@ function OptionsIndex() {
         background: false,
         added_at: new Date().toISOString(),
         is_valid: false,
-        dayRules: defaultDayRules(),
-        minGapMinutes: 0
+        dayRules: defaultDayRules()
       }
     ])
     toast("New schedule added.", { className: "bg-secondary", icon: "👏" })

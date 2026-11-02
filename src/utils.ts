@@ -126,6 +126,7 @@ export const defaultDayRules = (): DayRule[] =>
         day,
         enabled: day >= 1 && day <= 5,
         timesPerDay: 3,
+        minGapMinutes: 0,
         windowStart: "10:00",
         windowEnd: "18:00",
     }))
@@ -146,7 +147,7 @@ export const planRandomTimes = (input: ScheduleInput, day: Dayjs): Dayjs[] => {
     if (!(perDay >= 1)) return []
 
     const rand = seededRandom(hashSeed(`${input.uuid}|${day.format("YYYY-MM-DD")}`))
-    const offsets = pickSpacedOffsets(end - start - 1, perDay, Number(input.minGapMinutes) || 0, rand)
+    const offsets = pickSpacedOffsets(end - start - 1, perDay, Number(rule.minGapMinutes) || 0, rand)
 
     return offsets
         .sort((a, b) => a - b)
@@ -157,8 +158,6 @@ export const planRandomTimes = (input: ScheduleInput, day: Dayjs): Dayjs[] => {
 export const randomScheduleError = (input: ScheduleInput): string | null => {
     const enabled = (input.dayRules ?? []).filter((rule) => rule.enabled)
     if (enabled.length === 0) return "Turn on at least one day."
-
-    const gap = Math.max(0, Math.floor(Number(input.minGapMinutes) || 0))
 
     for (const rule of enabled) {
         const name = DAY_NAMES[rule.day]
@@ -172,7 +171,8 @@ export const randomScheduleError = (input: ScheduleInput): string | null => {
         const perDay = Math.floor(Number(rule.timesPerDay))
         if (!(perDay >= 1)) return `${name}: opens must be at least 1.`
 
-        // how many opens fit in the window with the minimum gap
+        // how many opens fit in the window with this day's minimum gap
+        const gap = Math.max(0, Math.floor(Number(rule.minGapMinutes) || 0))
         const total = end - start - 1
         const maxCount = gap > 0 ? Math.floor(total / gap) + 1 : total + 1
         if (perDay > maxCount) {
