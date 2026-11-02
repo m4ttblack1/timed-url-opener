@@ -20,6 +20,7 @@ const MATCH_WINDOW_MS = 2 * 60 * 1000
 export const DayCalendar: FC<Props> = ({ inputs }) => {
   const [offset, setOffset] = useState(0) // days from today
   const [openLog] = useStorage<OpenRecord[]>("openLog", [])
+  const [openCounts] = useStorage<Record<string, number>>("openCounts", {})
 
   // re-check once a minute so passed opens update
   const [, setTick] = useState(0)
@@ -130,6 +131,23 @@ export const DayCalendar: FC<Props> = ({ inputs }) => {
           <li className="text-sm opacity-60">Nothing planned for this day.</li>
         )}
       </ul>
+
+      <div className="rounded-box bg-base-100 p-3">
+        <p className="text-xs opacity-70">Total opens (all time)</p>
+        <p className="text-xl font-bold">
+          {Object.values(openCounts ?? {}).reduce((sum, n) => sum + n, 0)}
+        </p>
+        <ul className="mt-2 flex flex-col gap-1 text-sm">
+          {inputs
+            .filter((schedule) => (openCounts ?? {})[schedule.uuid])
+            .map((schedule) => (
+              <li key={schedule.uuid} className="flex justify-between gap-2">
+                <span className="truncate">{schedule.title || schedule.url}</span>
+                <span className="font-mono">{(openCounts ?? {})[schedule.uuid]}</span>
+              </li>
+            ))}
+        </ul>
+      </div>
 
       <p className="text-xs opacity-60">
         Chrome must be open for opens to happen. "Missed" means no open was recorded at that time,

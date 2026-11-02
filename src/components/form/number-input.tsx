@@ -53,7 +53,7 @@ export const NumberInput: FC<Props> = ({
       <input
         type="number"
         min={min}
-        value={amount as number}
+        value={(amount as number) ?? ""}
         onChange={(e) => {
           handleChange(index, inputKey, e.target.value)
         }}

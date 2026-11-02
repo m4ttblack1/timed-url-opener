@@ -33,6 +33,7 @@ export type ScheduleInput = {
   amount: number
   unit: Unit
   background: boolean
+  closeAfterSeconds?: number // close the opened tab after this many seconds; 0 keeps it open
   enabled: boolean
   uuid: string
   added_at: string
@@ -88,7 +89,8 @@ function OptionsIndex() {
         background: false,
         added_at: new Date().toISOString(),
         is_valid: false,
-        dayRules: defaultDayRules()
+        dayRules: defaultDayRules(),
+        closeAfterSeconds: 0
       }
     ])
     setSelected(schedules.length)

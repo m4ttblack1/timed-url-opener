@@ -170,6 +170,16 @@ export const OptionInput = ({ input, index }) => {
             <option value="background">Background tab</option>
           </select>
         </div>
+        <NumberInput
+          icon={ClockIcon}
+          label="Close tab after (seconds, 0 = never)"
+          inputKey="closeAfterSeconds"
+          min={0}
+          index={index}
+          input={input}
+          handleInputChange={handleInputChange}
+          setEditing={setEditing}
+        />
       </div>
       <div className="form-control">
         <label className="label">

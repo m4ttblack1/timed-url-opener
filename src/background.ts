@@ -6,6 +6,7 @@ import { computeNextAlarmTime, computeNextFiveWeekdayAlarmTime, generateNext5Dat
 // Record of each open that actually happened, shown by the calendar. Kept short.
 const OPEN_LOG_KEY = "openLog";
 const OPEN_LOG_LIMIT = 300;
+const OPEN_COUNTS_KEY = "openCounts";
 
 // @ts-ignore
 import activeIcon from "../assets/icon_active_32x32.png"
@@ -240,6 +241,11 @@ const main = async () => {
         const log: { uuid: string; url: string; at: number }[] = (await storage.get(OPEN_LOG_KEY)) ?? [];
         log.push({ uuid, url, at: Date.now() });
         await storage.set(OPEN_LOG_KEY, log.slice(-OPEN_LOG_LIMIT));
+
+        // running total per schedule, never trimmed
+        const counts: Record<string, number> = (await storage.get(OPEN_COUNTS_KEY)) ?? {};
+        counts[uuid] = (counts[uuid] ?? 0) + 1;
+        await storage.set(OPEN_COUNTS_KEY, counts);
     }
 
     // open url when alarm is triggered
@@ -265,8 +271,16 @@ const main = async () => {
         const active = !background;
         // open url
         if (url) {
-            chrome.tabs.create({ url, active });
+            const tab = await chrome.tabs.create({ url, active });
             await recordOpen(uuid, url);
+
+            // close the tab after the chosen number of seconds (0 = keep it open)
+            const closeAfter = Number(schedule.closeAfterSeconds) || 0;
+            if (closeAfter > 0 && tab.id !== undefined) {
+                setTimeout(() => {
+                    chrome.tabs.remove(tab.id!).catch(() => {});
+                }, closeAfter * 1000);
+            }
             setIconActive()
         }
     });
