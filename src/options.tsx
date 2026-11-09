@@ -48,7 +48,8 @@ export type ScheduleInput = {
 export type DayRule = {
   day: number // 0 = Sunday ... 6 = Saturday
   enabled: boolean
-  timesPerDay: number
+  timesPerDay: number // most opens on this day in a week
+  minPerDay?: number // fewest opens on this day in a week (default 0)
   minGapMinutes: number // shortest allowed time between two opens that day
   windowStart: string // "HH:mm", inclusive
   windowEnd: string // "HH:mm", exclusive

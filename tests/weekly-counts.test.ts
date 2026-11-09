@@ -53,6 +53,28 @@ describe("weekly random counts", () => {
     }
   })
 
+  it("keeps every day at or above its fewest opens", () => {
+    const withMinimum = factoryInput({
+      frequency: "random",
+      url: "https://example.com",
+      dayRules: defaultDayRules().map((rule) => ({
+        ...rule,
+        enabled: true,
+        minPerDay: 12,
+        timesPerDay: 20,
+        minGapMinutes: 0,
+        windowStart: "00:00",
+        windowEnd: "23:00",
+      })),
+    })
+    for (const monday of mondays) {
+      for (const count of weekCounts(withMinimum, monday)) {
+        expect(count).toBeGreaterThanOrEqual(12)
+        expect(count).toBeLessThanOrEqual(20)
+      }
+    }
+  })
+
   it("gives the same counts when the same week is asked for again", () => {
     expect(weekCounts(input, mondays[3])).toEqual(weekCounts(input, mondays[3]))
   })

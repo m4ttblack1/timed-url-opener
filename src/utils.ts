@@ -126,6 +126,7 @@ export const defaultDayRules = (): DayRule[] =>
         day,
         enabled: day >= 1 && day <= 5,
         timesPerDay: 3,
+        minPerDay: 0,
         minGapMinutes: 0,
         windowStart: "10:00",
         windowEnd: "18:00",
@@ -151,12 +152,13 @@ const weekCountCache = new Map<string, Record<number, number>>()
 const enabledRules = (input: ScheduleInput): DayRule[] => (input.dayRules ?? []).filter((rule) => rule.enabled)
 
 const maxOf = (rule: DayRule): number => Math.max(0, Math.floor(Number(rule.timesPerDay)) || 0)
+const minOf = (rule: DayRule): number => Math.min(maxOf(rule), Math.max(0, Math.floor(Number(rule.minPerDay)) || 0))
 
 const sumCounts = (counts: Record<number, number>, rules: DayRule[]): number =>
     rules.reduce((sum, rule) => sum + (counts[rule.day] ?? 0), 0)
 
 const weekCountsFor = (uuid: string, rules: DayRule[], weekStart: Dayjs): Record<number, number> => {
-    const signature = rules.map((rule) => `${rule.day}:${maxOf(rule)}`).join(",")
+    const signature = rules.map((rule) => `${rule.day}:${minOf(rule)}-${maxOf(rule)}`).join(",")
     const key = `${uuid}|${signature}|${weekStart.format("YYYY-MM-DD")}`
     const cached = weekCountCache.get(key)
     if (cached) return cached
@@ -164,12 +166,15 @@ const weekCountsFor = (uuid: string, rules: DayRule[], weekStart: Dayjs): Record
     // last week's counts, for the "must be different" rules (none before the chain start)
     const prev = weekStart.isAfter(COUNT_CHAIN_START) ? weekCountsFor(uuid, rules, weekStart.subtract(7, "day")) : null
 
+    // Each day's count is somewhere from its minimum up to its maximum
     const counts: Record<number, number> = {}
     for (const rule of rules) {
+        const min = minOf(rule)
         const max = maxOf(rule)
+        const span = max - min + 1
         const rand = seededRandom(hashSeed(`${uuid}|week|${weekStart.format("YYYY-MM-DD")}|${rule.day}`))
-        let value = Math.floor(rand() * (max + 1))
-        if (prev && max > 0 && value === prev[rule.day]) value = (value + 1) % (max + 1)
+        let value = min + Math.floor(rand() * span)
+        if (prev && span > 1 && value === prev[rule.day]) value = min + ((value - min + 1) % span)
         counts[rule.day] = value
     }
 
@@ -177,9 +182,10 @@ const weekCountsFor = (uuid: string, rules: DayRule[], weekStart: Dayjs): Record
         // change one day so the total differs; try each day until one works
         const prevTotal = sumCounts(prev, rules)
         for (const rule of rules) {
-            const max = maxOf(rule)
-            for (let step = 1; step <= max; step++) {
-                const candidate = (counts[rule.day] + step) % (max + 1)
+            const min = minOf(rule)
+            const span = maxOf(rule) - min + 1
+            for (let step = 1; step < span; step++) {
+                const candidate = min + ((counts[rule.day] - min + step) % span)
                 const total = sumCounts(counts, rules) - counts[rule.day] + candidate
                 if (candidate !== prev[rule.day] && total !== prevTotal) {
                     counts[rule.day] = candidate
@@ -262,6 +268,7 @@ export const randomScheduleError = (input: ScheduleInput): string | null => {
 
         const perDay = Math.floor(Number(rule.timesPerDay))
         if (!(perDay >= 1)) return `${name}: the most opens must be at least 1.`
+        if ((Math.floor(Number(rule.minPerDay)) || 0) > perDay) return `${name}: the fewest opens can't be more than the most.`
 
         // how many opens fit in the window with this day's minimum gap
         const gap = Math.max(0, Math.floor(Number(rule.minGapMinutes) || 0))

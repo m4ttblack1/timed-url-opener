@@ -12,7 +12,7 @@ type Props = {
   handleInputChange: (index: number, key: string, value: any) => void
 }
 
-type Patch = Partial<Pick<DayRule, "enabled" | "timesPerDay" | "minGapMinutes" | "windowStart" | "windowEnd">>
+type Patch = Partial<Pick<DayRule, "enabled" | "timesPerDay" | "minPerDay" | "minGapMinutes" | "windowStart" | "windowEnd">>
 
 // One row per day of the week: on/off, number of opens, and the from/until window
 export const DayRulesInput: FC<Props> = ({ input, index, handleInputChange }) => {
@@ -93,12 +93,13 @@ export const DayRulesInput: FC<Props> = ({ input, index, handleInputChange }) =>
         <span className="label-text">Each day</span>
       </label>
       <p className="px-1 pb-2 text-xs opacity-70">
-        Each week the app picks a new number for every day, from 0 up to the most opens you set. A day never repeats its number from the week before. Changing a day's times, gap or most opens redraws that day's planned times.
+        Each week the app picks a new number for every day, between the fewest and most opens you set. A day never repeats its number from the week before. Changing a day's times, gap or most opens redraws that day's planned times.
       </p>
       <div className="flex flex-col gap-2">
         {rules.map((rule) => {
           const draft = drafts[rule.day] ?? {}
           const timesPerDay = draft.timesPerDay ?? rule.timesPerDay
+          const minPerDay = draft.minPerDay ?? rule.minPerDay ?? 0
           const minGapMinutes = draft.minGapMinutes ?? rule.minGapMinutes
           const windowStart = draft.windowStart ?? rule.windowStart
           const windowEnd = draft.windowEnd ?? rule.windowEnd
@@ -118,6 +119,16 @@ export const DayRulesInput: FC<Props> = ({ input, index, handleInputChange }) =>
               <span className="w-24 font-medium">{dayName}</span>
               <input
                 type="number"
+                min={0}
+                aria-label={`${dayName} fewest opens`}
+                disabled={!rule.enabled}
+                value={minPerDay}
+                onChange={(e) => changeField(rule.day, "minPerDay", e.target.value)}
+                className="input input-bordered input-secondary input-sm w-20"
+              />
+              <span>to</span>
+              <input
+                type="number"
                 min={1}
                 aria-label={`${dayName} most opens`}
                 disabled={!rule.enabled}
@@ -125,7 +136,7 @@ export const DayRulesInput: FC<Props> = ({ input, index, handleInputChange }) =>
                 onChange={(e) => changeField(rule.day, "timesPerDay", e.target.value)}
                 className="input input-bordered input-secondary input-sm w-20"
               />
-              <span>opens at most</span>
+              <span>opens</span>
               <input
                 type="number"
                 min={0}
