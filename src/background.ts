@@ -298,7 +298,12 @@ const main = async () => {
 
         const active = !background;
         const tab = await chrome.tabs.create({ url, active });
-        await recordOpen(schedule.uuid, url);
+        // a failed save must not stop the tab from being closed later
+        try {
+            await recordOpen(schedule.uuid, url);
+        } catch (err) {
+            console.error("Could not record this open", err);
+        }
 
         // close the tab after the chosen number of seconds (0 = keep it open)
         const closeAfter = Number(schedule.closeAfterSeconds) || 0;
