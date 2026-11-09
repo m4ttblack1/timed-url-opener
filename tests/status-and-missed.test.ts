@@ -1,7 +1,7 @@
 import { describe, expect, it } from "@jest/globals"
 import dayjs from "dayjs"
 
-import { defaultDayRules, describeSeconds, missedPlannedOpens, scheduleHealth } from "~utils"
+import { defaultDayRules, describeSeconds, missedPlannedOpens, planRandomTimes, scheduleHealth } from "~utils"
 
 import { factoryInput } from "./utils"
 
@@ -38,7 +38,10 @@ describe("scheduleHealth", () => {
 describe("missedPlannedOpens", () => {
   it("reports a planned open that passed with no log entry", () => {
     const input = randomWithDays()
-    const now = dayjs().endOf("day")
+    // a day can have zero opens (random picks start at 0), so use the first day that has some
+    const offset = Array.from({ length: 14 }, (_, i) => i).find((i) => planRandomTimes(input, dayjs().add(i, "day")).length > 0)
+    expect(offset).not.toBeUndefined()
+    const now = dayjs().add(offset as number, "day").endOf("day")
     const missed = missedPlannedOpens(input, now, [], [])
     expect(missed.length).toBeGreaterThan(0)
   })

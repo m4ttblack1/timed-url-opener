@@ -148,9 +148,18 @@ function OptionsIndex() {
         return
       }
       if (!window.confirm(`Replace your ${schedules.length} current schedule(s) with ${list.length} from the file?`)) return
-      setInputs(list.map(migrateRandomInput))
+      const imported = list.map(migrateRandomInput) as ScheduleInput[]
+      setInputs(imported)
       setSelected(0)
-      toast(`Imported ${list.length} schedule${list.length === 1 ? "" : "s"}.`)
+      // check every imported schedule so a broken one is spotted straight away
+      const broken = imported.filter((item) => {
+        const health = scheduleHealth(item)
+        return health === "needs-url" || health === "needs-settings"
+      }).length
+      toast(
+        `Imported ${imported.length} schedule${imported.length === 1 ? "" : "s"}.` +
+          (broken > 0 ? ` ${broken} need${broken === 1 ? "s" : ""} fixing (orange dot).` : "")
+      )
     } catch (err) {
       toast("Could not read that file.")
     }

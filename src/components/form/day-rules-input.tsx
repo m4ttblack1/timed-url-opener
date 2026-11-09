@@ -3,6 +3,9 @@ import React, { FC, useEffect, useRef, useState } from "react"
 import type { DayRule, ScheduleInput } from "~options"
 import { DAY_NAMES } from "~utils"
 
+// Above this many opens on one day, saving asks first
+const LARGE_DAY = 30
+
 type Props = {
   input: ScheduleInput
   index: number
@@ -34,6 +37,25 @@ export const DayRulesInput: FC<Props> = ({ input, index, handleInputChange }) =>
     timer.current = null
     if (!pending.current) return
     pending.current = false
+
+    // Ask before saving a day with a lot of opens, and undo that day's change if the user says no
+    const stored = input.dayRules ?? []
+    const large = latest.current.filter((rule) => {
+      const before = stored.find((r) => r.day === rule.day)
+      return Number(rule.timesPerDay) > LARGE_DAY && Number(rule.timesPerDay) !== Number(before?.timesPerDay)
+    })
+    if (large.length > 0) {
+      const names = large.map((rule) => DAY_NAMES[rule.day]).join(", ")
+      if (!window.confirm(`${names}: more than ${LARGE_DAY} opens on one day. Save it?`)) {
+        latest.current = latest.current.map((rule) => {
+          const before = stored.find((r) => r.day === rule.day)
+          return large.some((r) => r.day === rule.day) && before ? before : rule
+        })
+        setDrafts({})
+        return
+      }
+    }
+
     handleInputChange(index, "dayRules", latest.current)
   }
 
@@ -70,6 +92,9 @@ export const DayRulesInput: FC<Props> = ({ input, index, handleInputChange }) =>
       <label className="label">
         <span className="label-text">Each day</span>
       </label>
+      <p className="px-1 pb-2 text-xs opacity-70">
+        Each week the app picks a new number for every day, from 0 up to the most opens you set. A day never repeats its number from the week before. Changing a day's times, gap or most opens redraws that day's planned times.
+      </p>
       <div className="flex flex-col gap-2">
         {rules.map((rule) => {
           const draft = drafts[rule.day] ?? {}
@@ -94,17 +119,17 @@ export const DayRulesInput: FC<Props> = ({ input, index, handleInputChange }) =>
               <input
                 type="number"
                 min={1}
-                aria-label={`${dayName} number of opens`}
+                aria-label={`${dayName} most opens`}
                 disabled={!rule.enabled}
                 value={timesPerDay}
                 onChange={(e) => changeField(rule.day, "timesPerDay", e.target.value)}
                 className="input input-bordered input-secondary input-sm w-20"
               />
-              <span>opens, at least</span>
+              <span>opens at most</span>
               <input
                 type="number"
                 min={0}
-                aria-label={`${dayName} minimum minutes between opens`}
+                aria-label={`${dayName} minimum minutes apart`}
                 disabled={!rule.enabled}
                 value={minGapMinutes}
                 onChange={(e) => changeField(rule.day, "minGapMinutes", e.target.value)}

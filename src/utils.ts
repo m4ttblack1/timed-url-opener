@@ -135,6 +135,73 @@ export const defaultDayRules = (): DayRule[] =>
 export const findDayRule = (input: ScheduleInput, weekday: number): DayRule | undefined =>
     (input.dayRules ?? []).find((rule) => rule.day === weekday && rule.enabled)
 
+// Monday is the first day of the week. Returns midnight on that Monday.
+export const weekStartOf = (day: Dayjs): Dayjs => day.subtract((day.day() + 6) % 7, "day").startOf("day")
+
+// Each day has a maximum (timesPerDay). Every week, the count for each enabled day is
+// picked at random from 0 up to that maximum. Two rules keep weeks different:
+//   - a day's count is never the same as the same weekday last week
+//   - the week's total is never the same as last week's total
+// The picks come from a seed (uuid + week + weekday), so the same week always gives the
+// same counts. Weeks are worked forward from a fixed start so each week can be compared
+// with the one before it.
+const COUNT_CHAIN_START = dayjs("2025-01-06").startOf("day") // a Monday
+const weekCountCache = new Map<string, Record<number, number>>()
+
+const enabledRules = (input: ScheduleInput): DayRule[] => (input.dayRules ?? []).filter((rule) => rule.enabled)
+
+const maxOf = (rule: DayRule): number => Math.max(0, Math.floor(Number(rule.timesPerDay)) || 0)
+
+const sumCounts = (counts: Record<number, number>, rules: DayRule[]): number =>
+    rules.reduce((sum, rule) => sum + (counts[rule.day] ?? 0), 0)
+
+const weekCountsFor = (uuid: string, rules: DayRule[], weekStart: Dayjs): Record<number, number> => {
+    const signature = rules.map((rule) => `${rule.day}:${maxOf(rule)}`).join(",")
+    const key = `${uuid}|${signature}|${weekStart.format("YYYY-MM-DD")}`
+    const cached = weekCountCache.get(key)
+    if (cached) return cached
+
+    // last week's counts, for the "must be different" rules (none before the chain start)
+    const prev = weekStart.isAfter(COUNT_CHAIN_START) ? weekCountsFor(uuid, rules, weekStart.subtract(7, "day")) : null
+
+    const counts: Record<number, number> = {}
+    for (const rule of rules) {
+        const max = maxOf(rule)
+        const rand = seededRandom(hashSeed(`${uuid}|week|${weekStart.format("YYYY-MM-DD")}|${rule.day}`))
+        let value = Math.floor(rand() * (max + 1))
+        if (prev && max > 0 && value === prev[rule.day]) value = (value + 1) % (max + 1)
+        counts[rule.day] = value
+    }
+
+    if (prev && sumCounts(counts, rules) === sumCounts(prev, rules)) {
+        // change one day so the total differs; try each day until one works
+        const prevTotal = sumCounts(prev, rules)
+        for (const rule of rules) {
+            const max = maxOf(rule)
+            for (let step = 1; step <= max; step++) {
+                const candidate = (counts[rule.day] + step) % (max + 1)
+                const total = sumCounts(counts, rules) - counts[rule.day] + candidate
+                if (candidate !== prev[rule.day] && total !== prevTotal) {
+                    counts[rule.day] = candidate
+                    break
+                }
+            }
+            if (sumCounts(counts, rules) !== prevTotal) break
+        }
+    }
+
+    weekCountCache.set(key, counts)
+    return counts
+}
+
+// How many opens this schedule makes on one date, this week's random pick
+export const dayOpenCount = (input: ScheduleInput, day: Dayjs): number => {
+    const rule = findDayRule(input, day.day())
+    if (!rule) return 0
+    const rules = enabledRules(input)
+    return weekCountsFor(input.uuid, rules, weekStartOf(day))[day.day()] ?? 0
+}
+
 export const planRandomTimes = (input: ScheduleInput, day: Dayjs): Dayjs[] => {
     const rule = findDayRule(input, day.day())
     if (!rule) return []
@@ -148,7 +215,7 @@ export const planRandomTimes = (input: ScheduleInput, day: Dayjs): Dayjs[] => {
     const endAt = dayjs(`${dateText} ${rule.windowEnd}`)
     if (!startAt.isValid() || !endAt.isValid() || !endAt.isAfter(startAt)) return []
 
-    const perDay = Math.floor(Number(rule.timesPerDay))
+    const perDay = dayOpenCount(input, day)
     if (!(perDay >= 1)) return []
 
     const totalMinutes = endAt.diff(startAt, "minute")
@@ -194,14 +261,15 @@ export const randomScheduleError = (input: ScheduleInput): string | null => {
         }
 
         const perDay = Math.floor(Number(rule.timesPerDay))
-        if (!(perDay >= 1)) return `${name}: opens must be at least 1.`
+        if (!(perDay >= 1)) return `${name}: the most opens must be at least 1.`
 
         // how many opens fit in the window with this day's minimum gap
         const gap = Math.max(0, Math.floor(Number(rule.minGapMinutes) || 0))
         const total = end - start - 1
         const maxCount = gap > 0 ? Math.floor(total / gap) + 1 : total + 1
         if (perDay > maxCount) {
-            return `${name}: ${perDay} opens don't fit between those times with a ${gap} minute gap.`
+            const needed = (perDay - 1) * gap
+            return `${name}: ${perDay} opens with a ${gap} minute gap need ${needed} minutes between the first and last open, but the window is only ${end - start} minutes. Lower the opens or the gap, or widen the window.`
         }
     }
 
@@ -369,11 +437,13 @@ export const capitalize = (str) => {
     if (typeof str !== "string" || !str) return str
     return str.charAt(0).toUpperCase() + str.slice(1).toLowerCase()
 }
-// How many opens a random schedule makes in a normal week (sum of the enabled days)
-export const weeklyOpenCount = (input: ScheduleInput): number =>
-    (input.dayRules ?? [])
-        .filter((rule) => rule.enabled)
-        .reduce((sum, rule) => sum + (Math.floor(Number(rule.timesPerDay)) || 0), 0)
+// How many opens a random schedule makes in a given week (Monday to Sunday).
+// Defaults to the current week. Counts are exact: this is the number the app will open.
+export const weeklyOpenCount = (input: ScheduleInput, weekStart: Dayjs = weekStartOf(dayjs())): number => {
+    const rules = enabledRules(input)
+    if (rules.length === 0) return 0
+    return sumCounts(weekCountsFor(input.uuid, rules, weekStart), rules)
+}
 
 // "240" -> "4 minutes", "45" -> "45 seconds", "0" -> "" (the tab stays open)
 export const describeSeconds = (value: number | undefined): string => {

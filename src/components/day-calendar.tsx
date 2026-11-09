@@ -5,6 +5,7 @@ import { useStorage } from "@plasmohq/storage/hook"
 
 import { store } from "~storage"
 import type { ScheduleInput } from "~options"
+import { weekStartOf, weeklyOpenCount } from "~utils"
 
 import { collectWeekEntries } from "./week-view"
 
@@ -56,6 +57,10 @@ export const DayCalendar: FC<Props> = ({ inputs }) => {
     { upcoming: 0, opened: 0, missed: 0 }
   )
 
+  // Total for the Monday-to-Sunday week that the selected day is in, across all schedules
+  const weekTotal = inputs.reduce((sum, input) => sum + weeklyOpenCount(input, weekStartOf(day)), 0)
+  const weekLabel = `${weekStartOf(day).format("D MMM")} to ${weekStartOf(day).add(6, "day").format("D MMM")}`
+
   const relative =
     offset === 0 ? "Today" : offset === 1 ? "Tomorrow" : offset === -1 ? "Yesterday" : ""
 
@@ -89,10 +94,15 @@ export const DayCalendar: FC<Props> = ({ inputs }) => {
         </button>
       </div>
 
+      <div className="rounded-box bg-base-100 p-3 text-center">
+        <p className="text-xs opacity-70">Week of {weekLabel} (Monday to Sunday)</p>
+        <p className="text-xl font-bold">{weekTotal} opens in total</p>
+      </div>
+
       {counts.missed > 0 && (
         <div role="alert" className="alert alert-warning py-2 text-sm">
           {counts.missed} planned open{counts.missed === 1 ? "" : "s"} on this day{" "}
-          {counts.missed === 1 ? "was" : "were"} missed. The extension was not running in the browser it is loaded in at those times.
+          {counts.missed === 1 ? "has" : "have"} no open recorded. Brave was not running the extension at those times, or the extension was switched off.
         </div>
       )}
 
@@ -113,7 +123,7 @@ export const DayCalendar: FC<Props> = ({ inputs }) => {
       <div className="text-sm opacity-70">
         {dayEntries.length} open{dayEntries.length === 1 ? "" : "s"}
         {counts.opened > 0 && `, ${counts.opened} opened`}
-        {counts.missed > 0 && `, ${counts.missed} missed`}
+        {counts.missed > 0 && `, ${counts.missed} with no open recorded`}
       </div>
 
       <ul className="flex max-h-[60vh] flex-col gap-2 overflow-y-auto pr-1">
@@ -130,7 +140,7 @@ export const DayCalendar: FC<Props> = ({ inputs }) => {
               <span className="font-mono">{entry.time.format("HH:mm")}</span>
               <span className="flex-1 truncate text-sm">{entry.label}</span>
               <span className="text-xs opacity-70">
-                {status === "upcoming" ? "" : status === "opened" ? "Opened" : "Missed"}
+                {status === "upcoming" ? "" : status === "opened" ? "Opened" : "No open recorded"}
               </span>
             </li>
           )
@@ -159,7 +169,7 @@ export const DayCalendar: FC<Props> = ({ inputs }) => {
 
       <p className="text-xs opacity-60">
         Opens only happen in the browser the extension is loaded in, and that browser must be open.
-        "Missed" means no open was recorded at that time.
+        "No open recorded" means the extension did not log an open at that time.
       </p>
     </div>
   )

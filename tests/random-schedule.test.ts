@@ -2,6 +2,7 @@ import { describe, expect, it } from "@jest/globals"
 import dayjs from "dayjs"
 
 import {
+  dayOpenCount,
   defaultDayRules,
   generateNext5Dates,
   hashSeed,
@@ -85,9 +86,13 @@ describe("planRandomTimes with per-day rules", () => {
   it("gives the number of opens each day asks for", () => {
     const input = randomInput({ dayRules: exampleRules() })
 
-    expect(planRandomTimes(input, dayjs("2026-11-02"))).toHaveLength(7) // Monday
-    expect(planRandomTimes(input, dayjs("2026-11-03"))).toHaveLength(10) // Tuesday
-    expect(planRandomTimes(input, dayjs("2026-11-06"))).toHaveLength(18) // Friday
+    // each day's number is a random pick from 0 up to that day's maximum
+    const maxes: Record<number, number> = { 1: 7, 2: 10, 5: 18 }
+    for (const [date, weekday] of [["2026-11-02", 1], ["2026-11-03", 2], ["2026-11-06", 5]] as const) {
+      const times = planRandomTimes(input, dayjs(date))
+      expect(times).toHaveLength(dayOpenCount(input, dayjs(date)))
+      expect(times.length).toBeLessThanOrEqual(maxes[weekday])
+    }
   })
 
   it("keeps each day's opens inside that day's own window", () => {
@@ -121,7 +126,8 @@ describe("planRandomTimes with per-day rules", () => {
     })
     const times = planRandomTimes(input, dayjs("2026-11-02"))
 
-    expect(times).toHaveLength(5)
+    expect(times).toHaveLength(dayOpenCount(input, dayjs("2026-11-02")))
+    expect(times.length).toBeLessThanOrEqual(5)
     for (let i = 1; i < times.length; i++) {
       expect(times[i].diff(times[i - 1], "minute")).toBeGreaterThanOrEqual(45)
     }
@@ -182,7 +188,7 @@ describe("randomScheduleError", () => {
     const input = randomInput({
       dayRules: rulesFor({ 1: { timesPerDay: 0, windowStart: "10:00", windowEnd: "18:00" } })
     })
-    expect(randomScheduleError(input)).toBe("Monday: opens must be at least 1.")
+    expect(randomScheduleError(input)).toBe("Monday: the most opens must be at least 1.")
   })
 
   it("rejects more opens than fit in the window with the minimum gap", () => {
@@ -211,7 +217,7 @@ describe("randomScheduleError", () => {
       })
     })
     expect(randomScheduleError(tuesdayOnly)).toBeNull()
-    expect(planRandomTimes(tuesdayOnly, dayjs("2026-11-03"))).toHaveLength(18)
+    expect(planRandomTimes(tuesdayOnly, dayjs("2026-11-03"))).toHaveLength(dayOpenCount(tuesdayOnly, dayjs("2026-11-03")))
   })
 
   it("applies each day's own gap when planning", () => {

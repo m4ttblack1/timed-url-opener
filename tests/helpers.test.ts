@@ -1,13 +1,18 @@
 import { describe, expect, it } from "@jest/globals"
 
-import { defaultDayRules, describeSeconds, weeklyOpenCount } from "~utils"
+import dayjs from "dayjs"
+import { dayOpenCount, defaultDayRules, describeSeconds, weekStartOf, weeklyOpenCount } from "~utils"
 
 import { factoryInput } from "./utils"
 
 describe("weeklyOpenCount", () => {
-  it("adds up the enabled days only", () => {
+  it("is the exact sum of this week's counts on the enabled days", () => {
     const rules = defaultDayRules().map((rule) => ({ ...rule, enabled: rule.day === 1 || rule.day === 5, timesPerDay: 7 }))
-    expect(weeklyOpenCount(factoryInput({ dayRules: rules }))).toBe(14)
+    const input = factoryInput({ dayRules: rules })
+    const monday = weekStartOf(dayjs())
+    const total = [0, 1, 2, 3, 4, 5, 6].reduce((sum, i) => sum + dayOpenCount(input, monday.add(i, "day")), 0)
+    expect(weeklyOpenCount(input)).toBe(total)
+    expect(weeklyOpenCount(input)).toBeLessThanOrEqual(14)
   })
 
   it("is zero when no day is on", () => {

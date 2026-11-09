@@ -176,7 +176,7 @@ export const OptionInput = ({ input, index }) => {
               <p className="w-full text-error">{randomScheduleError(input)}</p>
             ) : (
               <p className="w-full text-sm opacity-70">
-                About {weeklyOpenCount(input)} opens a week.
+                This week: {weeklyOpenCount(input)} opens in total. Next week's numbers will be different.
               </p>
             )}
           </>
@@ -212,7 +212,7 @@ export const OptionInput = ({ input, index }) => {
       <div className="form-control">
         <label className="label">
           <span className="label-text flex">
-            Enabled
+            Enabled (off pauses this schedule)
             <button
               className="tooltip tooltip-right"
               data-tip="Enable or disable this schedule.">

@@ -1,7 +1,7 @@
 import { beforeAll, describe, expect, it } from "@jest/globals"
 import dayjs from "dayjs"
 
-import { defaultDayRules, migrateRandomInput, planRandomTimes } from "~utils"
+import { dayOpenCount, defaultDayRules, migrateRandomInput, planRandomTimes } from "~utils"
 
 import { factoryInput } from "./utils"
 
@@ -37,7 +37,8 @@ describe("random opens on clock-change days", () => {
 
     const times = planRandomTimes(input, day)
 
-    expect(times).toHaveLength(6)
+    expect(times).toHaveLength(dayOpenCount(input, day))
+    expect(times.length).toBeLessThanOrEqual(6)
     times.forEach((time) => {
       expect(time.isBefore(startAt)).toBe(false)
       expect(time.isBefore(endAt)).toBe(true)
@@ -53,7 +54,8 @@ describe("random opens on clock-change days", () => {
 
     const times = planRandomTimes(input, day)
 
-    expect(times).toHaveLength(6)
+    expect(times).toHaveLength(dayOpenCount(input, day))
+    expect(times.length).toBeLessThanOrEqual(6)
     times.forEach((time) => {
       expect(time.isBefore(startAt)).toBe(false)
       expect(time.isBefore(endAt)).toBe(true)
