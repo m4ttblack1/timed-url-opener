@@ -92,7 +92,7 @@ export const DayCalendar: FC<Props> = ({ inputs }) => {
       {counts.missed > 0 && (
         <div role="alert" className="alert alert-warning py-2 text-sm">
           {counts.missed} planned open{counts.missed === 1 ? "" : "s"} on this day{" "}
-          {counts.missed === 1 ? "was" : "were"} missed. Chrome was probably closed at the time.
+          {counts.missed === 1 ? "was" : "were"} missed. The extension was not running in the browser it is loaded in at those times.
         </div>
       )}
 
@@ -158,8 +158,8 @@ export const DayCalendar: FC<Props> = ({ inputs }) => {
       </div>
 
       <p className="text-xs opacity-60">
-        Chrome must be open for opens to happen. "Missed" means no open was recorded at that time,
-        for example because Chrome was closed.
+        Opens only happen in the browser the extension is loaded in, and that browser must be open.
+        "Missed" means no open was recorded at that time.
       </p>
     </div>
   )
