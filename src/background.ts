@@ -25,7 +25,10 @@ const REFRESH_RANDOM_ALARM = "refreshRandomSchedules";
 
 const main = async () => {
 
-    await migrateToLocal();
+    // Listeners must be registered straight away, not after an await, or the worker can
+    // wake for an alarm before they exist and the alarm is lost. Handlers wait for the
+    // one-time migration instead.
+    const ready = migrateToLocal();
     const storage = store;
 
     const keepAlive = () => setInterval(chrome.runtime.getPlatformInfo, 20e3);
@@ -57,6 +60,7 @@ const main = async () => {
     })
 
     async function updateAlarms() {
+        await ready;
         await chrome.alarms.clearAll();
 
         // make sure the totals exist, back-filled from the log if this is the first run
@@ -269,6 +273,7 @@ const main = async () => {
 
     // open url when alarm is triggered
     chrome.alarms.onAlarm.addListener(async alarm => {
+        await ready;
         if (alarm.name === REFRESH_RANDOM_ALARM) {
             await refreshRandomAlarms();
             return;
@@ -319,6 +324,7 @@ const main = async () => {
     chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
         if (message?.type !== "testOpen") return false;
         (async () => {
+            await ready;
             const inputs = await loadInputs();
             const schedule = inputs.find((input) => input.uuid === message.uuid);
             if (!schedule || !schedule.url) {
