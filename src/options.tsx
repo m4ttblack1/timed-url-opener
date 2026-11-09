@@ -22,7 +22,7 @@ import { ThemeSelectButton } from "~components/form/theme-select-button"
 import { Modal } from "~components/modal"
 import { OptionInput } from "~components/option-input"
 import { projectLinks } from "~config"
-import { defaultDayRules, generateUUID, migrateRandomInput } from "~utils"
+import { defaultDayRules, generateUUID, migrateRandomInput, scheduleHealth } from "~utils"
 
 import { version } from "../package.json"
 
@@ -68,6 +68,7 @@ function OptionsIndex() {
     instance: store
   })
   const theme = storedTheme || defaultTheme
+  const [paused, setPaused] = useStorage<boolean>({ key: "paused", instance: store }, false)
   const [selected, setSelected] = useState<number>(0)
   const [loading, setLoading] = useState<boolean>(true)
   // wait for saved schedules to be moved to local storage before showing or saving anything
@@ -199,6 +200,11 @@ function OptionsIndex() {
               <span className="ml-3 text-sm opacity-60">v{version}</span>
             </div>
             <div className="navbar-end gap-2">
+              <button
+                onClick={() => setPaused(!paused)}
+                className={`btn btn-sm ${paused ? "btn-warning" : "btn-ghost"}`}>
+                {paused ? "Resume all" : "Pause all"}
+              </button>
               <a
                 href={projectLinks.github}
                 target="_blank"
@@ -214,6 +220,12 @@ function OptionsIndex() {
               </button>
             </div>
           </div>
+
+          {paused && (
+            <div role="alert" className="alert alert-warning mx-4 mt-4 py-2 text-sm">
+              All schedules are paused. Nothing will open until you press Resume all.
+            </div>
+          )}
 
           <main className="grid flex-1 grid-cols-1 items-start gap-4 p-4 xl:grid-cols-2">
             <section className="card min-w-0 bg-base-200 p-4">
@@ -231,6 +243,14 @@ function OptionsIndex() {
                         aria-selected={i === current}
                         onClick={() => setSelected(i)}
                         className={`btn btn-sm ${i === current ? "btn-secondary" : "btn-ghost"}`}>
+                        <span
+                          aria-hidden="true"
+                          className={`mr-2 inline-block h-2 w-2 rounded-full ${
+                            { ok: "bg-success", "needs-url": "bg-warning", "needs-settings": "bg-warning", off: "bg-neutral" }[
+                              scheduleHealth(schedule)
+                            ]
+                          }`}
+                        />
                         {schedule.title || "Untitled"}
                       </button>
                     ))}

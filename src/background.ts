@@ -1,7 +1,7 @@
 import { migrateToLocal, store } from "~storage"
 import dayjs from "dayjs";
 import type { ScheduleInput } from "~options";
-import { computeNextAlarmTime, computeNextFiveWeekdayAlarmTime, generateNext5Dates, migrateRandomInput, planRandomTimes } from "~utils";
+import { computeNextAlarmTime, computeNextFiveWeekdayAlarmTime, generateNext5Dates, migrateRandomInput, missedPlannedOpens, planRandomTimes } from "~utils";
 
 // Record of each open that actually happened, shown by the calendar. Kept short.
 const OPEN_LOG_KEY = "openLog";
@@ -22,6 +22,11 @@ const defaultTitle = `${envPrefix}Timed URL Opener`
 const OPEN_ALARM_PREFIX = "openURL";
 // Hourly alarm that re-plans "random" schedules, so the next days get planned after midnight
 const REFRESH_RANDOM_ALARM = "refreshRandomSchedules";
+// Every 15 minutes, and on startup, look for planned opens that never happened
+const CHECK_MISSED_ALARM = "checkMissedOpens";
+// Alarm for closing one opened tab. Named closeTab|<tabId>.
+const CLOSE_TAB_PREFIX = "closeTab|";
+const NOTIFIED_KEY = "notifiedMissed";
 
 const main = async () => {
 
@@ -61,7 +66,11 @@ const main = async () => {
 
     async function updateAlarms() {
         await ready;
-        await chrome.alarms.clearAll();
+        // rebuild the open alarms, but keep pending tab-close alarms
+        for (const alarm of await chrome.alarms.getAll()) {
+            if (!alarm.name.startsWith(CLOSE_TAB_PREFIX)) await chrome.alarms.clear(alarm.name);
+        }
+        chrome.alarms.create(CHECK_MISSED_ALARM, { periodInMinutes: 15 });
 
         // make sure the totals exist, back-filled from the log if this is the first run
         await ensureCounts();
@@ -279,6 +288,20 @@ const main = async () => {
             return;
         }
 
+        if (alarm.name === CHECK_MISSED_ALARM) {
+            await checkMissedOpens();
+            return;
+        }
+
+        if (alarm.name.startsWith(CLOSE_TAB_PREFIX)) {
+            const tabId = Number(alarm.name.substring(CLOSE_TAB_PREFIX.length));
+            chrome.tabs.remove(tabId).catch(() => {});
+            return;
+        }
+
+        // "Pause all" stops scheduled opens. Tabs already open still close on time.
+        if (await storage.get("paused")) return;
+
         // strip the prefix, then drop any `|suffix` to get the schedule uuid
         const uuid = alarm.name.substring(OPEN_ALARM_PREFIX.length).split("|")[0];
         const inputs: ScheduleInput[] = await loadInputs();
@@ -294,6 +317,37 @@ const main = async () => {
 
         await openSchedule(schedule);
     });
+
+    // Tells you about planned opens that did not happen. Each miss is reported once.
+    async function checkMissedOpens() {
+        if (await storage.get("paused")) return;
+
+        const inputs = await loadInputs();
+        const log: { uuid: string; at: number }[] = (await storage.get(OPEN_LOG_KEY)) ?? [];
+        const notified: string[] = (await storage.get(NOTIFIED_KEY)) ?? [];
+        const now = dayjs();
+
+        const fresh = inputs.flatMap((input) =>
+            missedPlannedOpens(input, now, log, notified).map((missed) => ({ input, ...missed }))
+        );
+        if (fresh.length === 0) return;
+
+        await storage.set(NOTIFIED_KEY, [...notified, ...fresh.map((f) => f.key)].slice(-500));
+
+        const byTitle = new Map<string, number>();
+        for (const f of fresh) {
+            const name = f.input.title || f.input.url;
+            byTitle.set(name, (byTitle.get(name) ?? 0) + 1);
+        }
+        const lines = [...byTitle].map(([name, count]) => `${name}: ${count} missed`);
+
+        chrome.notifications.create(`missed|${Date.now()}`, {
+            type: "basic",
+            iconUrl: chrome.runtime.getManifest().icons?.["128"] ?? "",
+            title: `${fresh.length} planned open${fresh.length === 1 ? "" : "s"} missed`,
+            message: lines.join("\n").slice(0, 250),
+        });
+    }
 
     // Opens a schedule's URL now, records it, and closes the tab later if asked to.
     // Used by both scheduled opens and the "Test now" button.
@@ -313,9 +367,8 @@ const main = async () => {
         // close the tab after the chosen number of seconds (0 = keep it open)
         const closeAfter = Number(schedule.closeAfterSeconds) || 0;
         if (closeAfter > 0 && tab.id !== undefined) {
-            setTimeout(() => {
-                chrome.tabs.remove(tab.id!).catch(() => {});
-            }, closeAfter * 1000);
+            // an alarm survives the worker going to sleep, unlike a timer
+            chrome.alarms.create(`${CLOSE_TAB_PREFIX}${tab.id}`, { when: Date.now() + closeAfter * 1000 });
         }
         setIconActive();
     }

@@ -379,10 +379,49 @@ export const weeklyOpenCount = (input: ScheduleInput): number =>
 export const describeSeconds = (value: number | undefined): string => {
     const seconds = Math.floor(Number(value) || 0)
     if (seconds <= 0) return "The tab stays open."
+    if (seconds < 30) return "The tab closes after 30 seconds. Chrome and Brave do not close tabs faster than that."
     const minutes = Math.floor(seconds / 60)
     const rest = seconds % 60
     const parts: string[] = []
     if (minutes) parts.push(`${minutes} minute${minutes === 1 ? "" : "s"}`)
     if (rest || !minutes) parts.push(`${rest} second${rest === 1 ? "" : "s"}`)
     return `The tab closes after ${parts.join(" ")}.`
+}
+
+// Overall state of a schedule, shown as a coloured dot in the schedule list
+export type ScheduleHealth = "off" | "needs-url" | "needs-settings" | "ok"
+
+export const scheduleHealth = (input: ScheduleInput): ScheduleHealth => {
+    if (!input.enabled) return "off"
+    try {
+        new URL(input.url)
+    } catch (err) {
+        return "needs-url"
+    }
+    if (input.frequency === "random" && randomScheduleError(input)) return "needs-settings"
+    return "ok"
+}
+
+export type MissedOpen = { key: string; time: Dayjs }
+
+// Planned opens for today that were due more than 5 minutes ago, were planned after the
+// schedule was created, and have no matching entry in the open log. Each is returned once,
+// because `notified` holds the keys already reported.
+export const missedPlannedOpens = (
+    input: ScheduleInput,
+    now: Dayjs,
+    log: { uuid: string; at: number }[],
+    notified: string[]
+): MissedOpen[] => {
+    if (!input.enabled || !input.url || input.frequency !== "random") return []
+
+    const created = dayjs(input.added_at)
+    const cutoff = now.subtract(5, "minute")
+    const planned = planRandomTimes(input, now.startOf("day"))
+
+    return planned
+        .filter((time) => time.isBefore(cutoff) && (!created.isValid() || time.isAfter(created)))
+        .filter((time) => !log.some((record) => record.uuid === input.uuid && Math.abs(record.at - time.valueOf()) <= 2 * 60 * 1000))
+        .map((time) => ({ key: `${input.uuid}|${time.toISOString()}`, time }))
+        .filter((missed) => !notified.includes(missed.key))
 }

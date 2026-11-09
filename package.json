@@ -41,7 +41,8 @@
   },
   "manifest": {
     "permissions": [
-      "alarms"
+      "alarms",
+      "notifications"
     ]
   }
 }
