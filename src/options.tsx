@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from "react"
 import { resolveValue, toast, Toaster } from "react-hot-toast"
 
-import { Storage } from "@plasmohq/storage"
+import { migrateToLocal, store } from "~storage"
 import { useStorage } from "@plasmohq/storage/hook"
 
 import "~style.css"
@@ -62,14 +62,19 @@ const darkThemes = ["midnight-gold", "dark", "dracula", "dim", "synthwave", "sun
 const defaultTheme = "midnight-gold"
 
 function OptionsIndex() {
-  const [inputs, setInputs] = useStorage<ScheduleInput[]>("inputs", [])
+  const [inputs, setInputs] = useStorage<ScheduleInput[]>({ key: "inputs", instance: store }, [])
   const [storedTheme, setTheme] = useStorage<string>({
     key: "theme",
-    instance: new Storage({ copiedKeyList: ["theme"] })
+    instance: store
   })
   const theme = storedTheme || defaultTheme
   const [selected, setSelected] = useState<number>(0)
   const [loading, setLoading] = useState<boolean>(true)
+  // wait for saved schedules to be moved to local storage before showing or saving anything
+  const [migrated, setMigrated] = useState<boolean>(false)
+  useEffect(() => {
+    migrateToLocal().finally(() => setMigrated(true))
+  }, [])
 
   const schedules: ScheduleInput[] = inputs ?? []
   // keep the selection valid after a schedule is deleted
@@ -346,7 +351,7 @@ function OptionsIndex() {
           }
         />
       </div>
-      {loading && (
+      {(loading || !migrated) && (
         <div className="fixed inset-0 bg-blur z-50">
           <div className="fixed inset-0 bg-blur z-50 flex items-center justify-center">
             <div className="border-t-4 border-blue-500 border-solid rounded-full animate-spin h-12 w-12"></div>

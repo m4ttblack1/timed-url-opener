@@ -1,4 +1,4 @@
-import { Storage } from "@plasmohq/storage"
+import { migrateToLocal, store } from "~storage"
 import dayjs from "dayjs";
 import type { ScheduleInput } from "~options";
 import { computeNextAlarmTime, computeNextFiveWeekdayAlarmTime, generateNext5Dates, migrateRandomInput, planRandomTimes } from "~utils";
@@ -25,7 +25,8 @@ const REFRESH_RANDOM_ALARM = "refreshRandomSchedules";
 
 const main = async () => {
 
-    const storage = new Storage();
+    await migrateToLocal();
+    const storage = store;
 
     const keepAlive = () => setInterval(chrome.runtime.getPlatformInfo, 20e3);
 

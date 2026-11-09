@@ -3,6 +3,7 @@ import React, { FC, useEffect, useState } from "react"
 
 import { useStorage } from "@plasmohq/storage/hook"
 
+import { store } from "~storage"
 import type { ScheduleInput } from "~options"
 
 import { collectWeekEntries } from "./week-view"
@@ -19,8 +20,8 @@ const MATCH_WINDOW_MS = 2 * 60 * 1000
 // One day at a time, with arrows to step through the calendar
 export const DayCalendar: FC<Props> = ({ inputs }) => {
   const [offset, setOffset] = useState(0) // days from today
-  const [openLog] = useStorage<OpenRecord[]>("openLog", [])
-  const [openCounts] = useStorage<Record<string, number>>("openCounts", {})
+  const [openLog] = useStorage<OpenRecord[]>({ key: "openLog", instance: store }, [])
+  const [openCounts] = useStorage<Record<string, number>>({ key: "openCounts", instance: store }, {})
 
   // re-check once a minute so passed opens update
   const [, setTick] = useState(0)

@@ -13,6 +13,7 @@ import toast from "react-hot-toast"
 
 import { useStorage } from "@plasmohq/storage/hook"
 
+import { store } from "~storage"
 import { describeSeconds, randomScheduleError, weeklyOpenCount } from "~utils"
 
 import { DateInput } from "./form/date-input"
@@ -27,7 +28,7 @@ import { DayRulesInput } from "./form/day-rules-input"
 export const OptionInput = ({ input, index }) => {
   const [editing, setEditing] = useState(false)
   const [testing, setTesting] = useState(false)
-  const [inputs, setInputs] = useStorage("inputs", [])
+  const [inputs, setInputs] = useStorage({ key: "inputs", instance: store }, [])
 
   const handleDeleteInput = (index: number) => {
     const name = inputs[index]?.title || inputs[index]?.url || "this schedule"
