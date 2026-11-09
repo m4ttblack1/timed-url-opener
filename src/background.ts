@@ -72,8 +72,13 @@ const main = async () => {
         }
         chrome.alarms.create(CHECK_MISSED_ALARM, { periodInMinutes: 15 });
 
-        // make sure the totals exist, back-filled from the log if this is the first run
-        await ensureCounts();
+        // make sure the totals exist, back-filled from the log if this is the first run.
+        // A failure here must not stop the open alarms from being created.
+        try {
+            await ensureCounts();
+        } catch (err) {
+            console.error("Could not set up open totals", err);
+        }
 
         const inputs: ScheduleInput[] = await loadInputs();
 
@@ -289,7 +294,7 @@ const main = async () => {
         }
 
         if (alarm.name === CHECK_MISSED_ALARM) {
-            await checkMissedOpens();
+            await checkMissedOpens().catch((err) => console.error("Missed-open check failed", err));
             return;
         }
 
