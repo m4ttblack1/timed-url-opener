@@ -9,7 +9,9 @@ import "~style.css"
 import {
   EyeIcon,
   MarkGithubIcon,
+  DownloadIcon,
   PeopleIcon,
+  UploadIcon,
   PlusIcon,
   StopwatchIcon
 } from "@primer/octicons-react"
@@ -114,6 +116,39 @@ function OptionsIndex() {
   })
 
   const selectedSchedule = schedules[current]
+
+  // Saves all schedules and settings to a file you can keep or move to another computer
+  const handleExport = () => {
+    const payload = { exportedAt: new Date().toISOString(), version, inputs: schedules }
+    const blob = new Blob([JSON.stringify(payload, null, 2)], { type: "application/json" })
+    const link = document.createElement("a")
+    link.href = URL.createObjectURL(blob)
+    link.download = `timed-url-opener-${dayjs().format("YYYY-MM-DD")}.json`
+    link.click()
+    URL.revokeObjectURL(link.href)
+    toast(`Exported ${schedules.length} schedule${schedules.length === 1 ? "" : "s"}.`)
+  }
+
+  // Loads schedules from a file made by Export. Replaces the current list after asking.
+  const handleImport = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0]
+    event.target.value = ""
+    if (!file) return
+    try {
+      const data = JSON.parse(await file.text())
+      const list = Array.isArray(data) ? data : data?.inputs
+      if (!Array.isArray(list) || !list.every((item) => item && typeof item.uuid === "string")) {
+        toast("That file is not a Timed URL Opener export.")
+        return
+      }
+      if (!window.confirm(`Replace your ${schedules.length} current schedule(s) with ${list.length} from the file?`)) return
+      setInputs(list.map(migrateRandomInput))
+      setSelected(0)
+      toast(`Imported ${list.length} schedule${list.length === 1 ? "" : "s"}.`)
+    } catch (err) {
+      toast("Could not read that file.")
+    }
+  }
 
   return (
     <>
@@ -229,6 +264,25 @@ function OptionsIndex() {
                 <EyeIcon size={20} />
                 Theme
               </label>
+            </li>
+            <li>
+              <button onClick={handleExport}>
+                <DownloadIcon size={20} />
+                Export schedules
+              </button>
+            </li>
+            <li>
+              <label htmlFor="import-file">
+                <UploadIcon size={20} />
+                Import schedules
+              </label>
+              <input
+                id="import-file"
+                type="file"
+                accept="application/json,.json"
+                className="hidden"
+                onChange={handleImport}
+              />
             </li>
             <li>
               <label htmlFor="about_modal">

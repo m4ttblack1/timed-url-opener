@@ -88,6 +88,13 @@ export const DayCalendar: FC<Props> = ({ inputs }) => {
         </button>
       </div>
 
+      {counts.missed > 0 && (
+        <div role="alert" className="alert alert-warning py-2 text-sm">
+          {counts.missed} planned open{counts.missed === 1 ? "" : "s"} on this day{" "}
+          {counts.missed === 1 ? "was" : "were"} missed. Chrome was probably closed at the time.
+        </div>
+      )}
+
       <div className="rounded-box bg-base-100 p-3">
         <p className="text-xs opacity-70">Next open</p>
         {nextOpen ? (

@@ -13,7 +13,7 @@ import toast from "react-hot-toast"
 
 import { useStorage } from "@plasmohq/storage/hook"
 
-import { randomScheduleError } from "~utils"
+import { describeSeconds, randomScheduleError, weeklyOpenCount } from "~utils"
 
 import { DateInput } from "./form/date-input"
 import { NumberInput } from "./form/number-input"
@@ -26,14 +26,34 @@ import { DayRulesInput } from "./form/day-rules-input"
 
 export const OptionInput = ({ input, index }) => {
   const [editing, setEditing] = useState(false)
+  const [testing, setTesting] = useState(false)
   const [inputs, setInputs] = useStorage("inputs", [])
 
   const handleDeleteInput = (index: number) => {
+    const name = inputs[index]?.title || inputs[index]?.url || "this schedule"
+    if (!window.confirm(`Delete ${name}? This cannot be undone.`)) return
     const newInputs = [...inputs]
     const oldInput = newInputs[index]
     newInputs.splice(index, 1)
     setInputs(newInputs)
     toast(`Schedule ID: ${oldInput.uuid} Deleted.`, { icon: "🗑️" })
+  }
+
+  // Opens this schedule's URL straight away, using the same settings as a scheduled open
+  const handleTestNow = async () => {
+    if (!input.url) {
+      toast("Add a URL first.")
+      return
+    }
+    setTesting(true)
+    try {
+      const reply = await chrome.runtime.sendMessage({ type: "testOpen", uuid: input.uuid })
+      toast(reply?.ok ? "Opened. Check your tabs." : reply?.error ?? "Could not open the URL.")
+    } catch (err) {
+      toast("Could not reach the background worker. Reload the extension and try again.")
+    } finally {
+      setTesting(false)
+    }
   }
 
   const handleInputChange = (index: number, key: string, value: any) => {
@@ -151,8 +171,12 @@ export const OptionInput = ({ input, index }) => {
               input={input}
               handleInputChange={handleInputChange}
             />
-            {randomScheduleError(input) && (
+            {randomScheduleError(input) ? (
               <p className="w-full text-error">{randomScheduleError(input)}</p>
+            ) : (
+              <p className="w-full text-sm opacity-70">
+                About {weeklyOpenCount(input)} opens a week.
+              </p>
             )}
           </>
         )}
@@ -180,6 +204,9 @@ export const OptionInput = ({ input, index }) => {
           handleInputChange={handleInputChange}
           setEditing={setEditing}
         />
+        <p className="w-full text-sm opacity-70 -mt-2">
+          {describeSeconds(input.closeAfterSeconds)}
+        </p>
       </div>
       <div className="form-control">
         <label className="label">
@@ -213,6 +240,14 @@ export const OptionInput = ({ input, index }) => {
             <p className="invisible">Placeholder</p>
           </div>
         )}
+      </div>
+      <div className="row flex justify-center">
+        <button
+          onClick={handleTestNow}
+          disabled={testing}
+          className="btn btn-outline btn-sm mt-4">
+          {testing ? "Opening..." : "Test now"}
+        </button>
       </div>
       <div className="row flex justify-center">
         <button

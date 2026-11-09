@@ -369,3 +369,20 @@ export const capitalize = (str) => {
     if (typeof str !== "string" || !str) return str
     return str.charAt(0).toUpperCase() + str.slice(1).toLowerCase()
 }
+// How many opens a random schedule makes in a normal week (sum of the enabled days)
+export const weeklyOpenCount = (input: ScheduleInput): number =>
+    (input.dayRules ?? [])
+        .filter((rule) => rule.enabled)
+        .reduce((sum, rule) => sum + (Math.floor(Number(rule.timesPerDay)) || 0), 0)
+
+// "240" -> "4 minutes", "45" -> "45 seconds", "0" -> "" (the tab stays open)
+export const describeSeconds = (value: number | undefined): string => {
+    const seconds = Math.floor(Number(value) || 0)
+    if (seconds <= 0) return "The tab stays open."
+    const minutes = Math.floor(seconds / 60)
+    const rest = seconds % 60
+    const parts: string[] = []
+    if (minutes) parts.push(`${minutes} minute${minutes === 1 ? "" : "s"}`)
+    if (rest || !minutes) parts.push(`${rest} second${rest === 1 ? "" : "s"}`)
+    return `The tab closes after ${parts.join(" ")}.`
+}

@@ -58,6 +58,9 @@ const main = async () => {
     async function updateAlarms() {
         await chrome.alarms.clearAll();
 
+        // make sure the totals exist, back-filled from the log if this is the first run
+        await ensureCounts();
+
         const inputs: ScheduleInput[] = await loadInputs();
 
         await updateIcon(inputs);
@@ -236,6 +239,21 @@ const main = async () => {
         return raw.map(migrateRandomInput);
     }
 
+    // Returns the running totals. If none have been saved yet, they are worked out from the
+    // open log so opens from before the totals existed are counted.
+    async function ensureCounts(): Promise<Record<string, number>> {
+        const saved = (await storage.get(OPEN_COUNTS_KEY)) as Record<string, number> | undefined;
+        if (saved) return saved;
+
+        const log: { uuid: string }[] = (await storage.get(OPEN_LOG_KEY)) ?? [];
+        const counts: Record<string, number> = {};
+        for (const record of log) {
+            counts[record.uuid] = (counts[record.uuid] ?? 0) + 1;
+        }
+        await storage.set(OPEN_COUNTS_KEY, counts);
+        return counts;
+    }
+
     // Adds an entry to the open log that the calendar reads
     async function recordOpen(uuid: string, url: string) {
         const log: { uuid: string; url: string; at: number }[] = (await storage.get(OPEN_LOG_KEY)) ?? [];
@@ -243,7 +261,7 @@ const main = async () => {
         await storage.set(OPEN_LOG_KEY, log.slice(-OPEN_LOG_LIMIT));
 
         // running total per schedule, never trimmed
-        const counts: Record<string, number> = (await storage.get(OPEN_COUNTS_KEY)) ?? {};
+        const counts = await ensureCounts();
         counts[uuid] = (counts[uuid] ?? 0) + 1;
         await storage.set(OPEN_COUNTS_KEY, counts);
     }
@@ -268,21 +286,43 @@ const main = async () => {
         // do nothing if not enabled
         if (!enabled) return;
 
-        const active = !background;
-        // open url
-        if (url) {
-            const tab = await chrome.tabs.create({ url, active });
-            await recordOpen(uuid, url);
+        await openSchedule(schedule);
+    });
 
-            // close the tab after the chosen number of seconds (0 = keep it open)
-            const closeAfter = Number(schedule.closeAfterSeconds) || 0;
-            if (closeAfter > 0 && tab.id !== undefined) {
-                setTimeout(() => {
-                    chrome.tabs.remove(tab.id!).catch(() => {});
-                }, closeAfter * 1000);
-            }
-            setIconActive()
+    // Opens a schedule's URL now, records it, and closes the tab later if asked to.
+    // Used by both scheduled opens and the "Test now" button.
+    async function openSchedule(schedule: ScheduleInput) {
+        const { url, background } = schedule;
+        if (!url) return;
+
+        const active = !background;
+        const tab = await chrome.tabs.create({ url, active });
+        await recordOpen(schedule.uuid, url);
+
+        // close the tab after the chosen number of seconds (0 = keep it open)
+        const closeAfter = Number(schedule.closeAfterSeconds) || 0;
+        if (closeAfter > 0 && tab.id !== undefined) {
+            setTimeout(() => {
+                chrome.tabs.remove(tab.id!).catch(() => {});
+            }, closeAfter * 1000);
         }
+        setIconActive();
+    }
+
+    // "Test now" from the options page
+    chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
+        if (message?.type !== "testOpen") return false;
+        (async () => {
+            const inputs = await loadInputs();
+            const schedule = inputs.find((input) => input.uuid === message.uuid);
+            if (!schedule || !schedule.url) {
+                sendResponse({ ok: false, error: "This schedule has no URL yet." });
+                return;
+            }
+            await openSchedule(schedule);
+            sendResponse({ ok: true });
+        })().catch((err) => sendResponse({ ok: false, error: String(err) }));
+        return true; // keeps the channel open for the async reply
     });
 
 };
